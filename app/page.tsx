@@ -356,10 +356,10 @@ export default function Home() {
           
           {/* Logo Sidebar */}
           <div className="flex items-center gap-3 px-2 py-3 border-b border-slate-800">
-            <div className="bg-blue-600 text-white font-black text-xl p-2 rounded-xl">ODPE</div>
+            <div className="bg-blue-600 text-white font-black text-xl p-2 rounded-xl">POLLITOS DE MARLENE</div>
             <div>
-              <h2 className="font-bold text-sm tracking-wide text-white">INCIDENTE TRACKER</h2>
-              <p className="text-[10px] text-slate-400">Oficina Electoral</p>
+              <h2 className="font-bold text-sm tracking-wide text-white">APP PARA GESTIONAR ODPES</h2>
+              <p className="text-[10px] text-slate-400">SUPERS</p>
             </div>
           </div>
 
