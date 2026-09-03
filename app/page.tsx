@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import DirectorioOdpes from './components/DirectorioOdpes';
-import TablaTecnicos from './components/TablaTecnicos';
+import DirectorioOdpes from '@/app/components/DirectorioOdpes';
+import TablaTecnicos from '@/app/components/TablaTecnicos';
 
 interface Incidencia {
   id: number;
@@ -39,6 +39,9 @@ export default function Home() {
   const [passwordInput, setPasswordInput] = useState('');
   const [loadingAuth, setLoadingAuth] = useState(false);
 
+  // Modo Reporte Técnico (Sin Login)
+  const [modoReportePublico, setModoReportePublico] = useState(false);
+
   // Navegación Sidebar
   const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'odpes' | 'tecnicos' | 'reportes' | 'historial'>('incidentes');
 
@@ -50,12 +53,8 @@ export default function Home() {
 
   // Catálogos
   const [listaOdpes, setListaOdpes] = useState<string[]>(['ODPE LIMA CENTRO', 'ODPE CUSCO', 'ODPE SANTA', 'ODPE AREQUIPA']);
-  const [listaSupervisores, setListaSupervisores] = useState<string[]>(['Juan Pérez', 'Carlos Gómez']);
   const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO']);
   const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto']);
-
-  const [modalCatalogos, setModalCatalogos] = useState<string | null>(null);
-  const [inputNuevoCatalog, setInputNuevoCatalog] = useState('');
 
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState('Todos');
@@ -70,6 +69,8 @@ export default function Home() {
   const [tecnicoNombre, setTecnicoNombre] = useState('');
   const [tecnicoDni, setTecnicoDni] = useState('');
   const [tecnicoCelular, setTecnicoCelular] = useState('');
+  const [datosTecnicoExiste, setDatosTecnicoExiste] = useState(false);
+
   const [tipoProblema, setTipoProblema] = useState('Hardware');
   const [equipoSeleccionado, setEquipoSeleccionado] = useState('CPU');
   const [marca, setMarca] = useState('');
@@ -94,7 +95,7 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Auto-fill al cambiar ODPE
+  // Auto-fill Inteligente al cambiar ODPE
   const cargarDatosOdpe = async (nombreOdpe: string) => {
     if (!nombreOdpe) return;
     const { data } = await supabase
@@ -105,24 +106,26 @@ export default function Home() {
       .limit(1)
       .maybeSingle();
 
-    if (data) {
+    if (data && (data.tecnico_nombre || data.supervisor)) {
       setSupervisor(data.supervisor || '');
       setTecnicoNombre(data.tecnico_nombre || '');
       setTecnicoDni(data.tecnico_dni || '');
       setTecnicoCelular(data.tecnico_celular || '');
+      setDatosTecnicoExiste(true);
     } else {
       setSupervisor('');
       setTecnicoNombre('');
       setTecnicoDni('');
       setTecnicoCelular('');
+      setDatosTecnicoExiste(false);
     }
   };
 
   useEffect(() => {
-    if (sesion && odpeSeleccionada && !editandoId) {
+    if (odpeSeleccionada && !editandoId) {
       cargarDatosOdpe(odpeSeleccionada);
     }
-  }, [odpeSeleccionada, sesion, editandoId]);
+  }, [odpeSeleccionada, editandoId]);
 
   const cargarPerfil = async (userId: string, email: string) => {
     try {
@@ -135,15 +138,15 @@ export default function Home() {
       if (data && data.rol) {
         setPerfil({
           correo: data.correo || email,
-          nombre: data.nombre || 'Usuario',
+          nombre: data.nombre || (data.rol === 'Admin' ? 'Administrador' : 'Usuario'),
           rol: data.rol as 'Admin' | 'Supervisor' | 'Visitante',
         });
       } else {
-        await supabase.from('perfiles').upsert([{ id: userId, correo: email, nombre: 'Kenet (Admin)', rol: 'Admin' }]);
-        setPerfil({ correo: email, nombre: 'Kenet (Admin)', rol: 'Admin' });
+        await supabase.from('perfiles').upsert([{ id: userId, correo: email, nombre: 'Administrador', rol: 'Admin' }]);
+        setPerfil({ correo: email, nombre: 'Administrador', rol: 'Admin' });
       }
     } catch (err) {
-      setPerfil({ correo: email, nombre: 'Usuario', rol: 'Admin' });
+      setPerfil({ correo: email, nombre: 'Administrador', rol: 'Admin' });
     }
   };
 
@@ -172,35 +175,39 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (sesion) fetchIncidencias();
-  }, [sesion]);
+    fetchIncidencias();
+  }, []);
 
-  const agregarAlCatalogo = (tipo: string) => {
-    if (!inputNuevoCatalog.trim()) return;
-    const val = inputNuevoCatalog.trim();
+  const handleSubmitPublico = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = {
+      odpe_nombre: odpeSeleccionada,
+      supervisor: supervisor,
+      tecnico_nombre: tecnicoNombre,
+      tecnico_dni: tecnicoDni,
+      tecnico_celular: tecnicoCelular.replace(/\s+/g, ''),
+      tipo_problema: tipoProblema,
+      equipo_afectado: equipoSeleccionado,
+      marca,
+      modelo,
+      serie,
+      estado: 'Reportado',
+      descripcion,
+      usuario_a_cargo: tecnicoNombre || supervisor || 'Técnico de Campo',
+      creado_por: tecnicoNombre ? `${tecnicoNombre} (Técnico)` : 'Técnico de Campo'
+    };
 
-    if (tipo === 'odpe' && !listaOdpes.includes(val)) {
-      setListaOdpes([...listaOdpes, val.toUpperCase()]);
-      setOdpeSeleccionada(val.toUpperCase());
-    }
-    if (tipo === 'supervisor' && !listaSupervisores.includes(val)) {
-      setListaSupervisores([...listaSupervisores, val]);
-      setSupervisor(val);
-    }
-    if (tipo === 'equipo' && !listaEquipos.includes(val)) setListaEquipos([...listaEquipos, val.toUpperCase()]);
-    if (tipo === 'estado' && !listaEstados.includes(val)) setListaEstados([...listaEstados, val]);
-
-    setInputNuevoCatalog('');
-    setModalCatalogos(null);
-  };
-
-  const eliminarDelCatalogo = (tipo: string, valor: string) => {
-    if (perfil?.rol !== 'Admin') return alert('Solo el Administrador puede eliminar elementos.');
-    if (confirm(`¿Eliminar "${valor}" de la lista?`)) {
-      if (tipo === 'odpe') setListaOdpes(listaOdpes.filter(o => o !== valor));
-      if (tipo === 'supervisor') setListaSupervisores(listaSupervisores.filter(s => s !== valor));
-      if (tipo === 'equipo') setListaEquipos(listaEquipos.filter(e => e !== valor));
-      if (tipo === 'estado') setListaEstados(listaEstados.filter(es => es !== valor));
+    const { error } = await supabase.from('incidencias').insert([{ ...payload, en_papelera: false }]);
+    if (error) {
+      alert('Error al enviar reporte: ' + error.message);
+    } else {
+      alert('✅ Incidencia registrada con éxito. El equipo de monitoreo la revisará.');
+      setMarca('');
+      setModelo('');
+      setSerie('');
+      setDescripcion('');
+      setModoReportePublico(false);
+      fetchIncidencias();
     }
   };
 
@@ -320,130 +327,137 @@ export default function Home() {
     return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda;
   });
 
-  // Métricas para Dashboard
-  const totalActivos = incidencias.filter(i => !i.en_papelera).length;
+  // Métricas
   const totalReportados = incidencias.filter(i => !i.en_papelera && i.estado === 'Reportado').length;
   const totalEnProceso = incidencias.filter(i => !i.en_papelera && i.estado === 'En Proceso').length;
   const totalAlmacen = incidencias.filter(i => !i.en_papelera && i.estado === 'Almacén').length;
   const totalResueltos = incidencias.filter(i => !i.en_papelera && i.estado === 'Resuelto').length;
 
+  // VISTA PÚBLICA / LOGIN
   if (!sesion) {
     return (
       <main className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans text-slate-100">
         <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl max-w-md w-full shadow-2xl space-y-6">
           <div className="text-center space-y-2">
             <div className="inline-block bg-blue-600 text-white font-black text-2xl px-4 py-2 rounded-xl mb-2">ODPE</div>
-            <h1 className="text-2xl font-bold tracking-wide">Acceso al Sistema</h1>
+            <h1 className="text-2xl font-bold tracking-wide">
+              {modoReportePublico ? 'Reporte de Campo' : 'Acceso al Sistema'}
+            </h1>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4 text-xs">
-            <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="Correo" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
-            <input type="password" required value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="Contraseña" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
-            <button type="submit" disabled={loadingAuth} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl">
-              {loadingAuth ? 'Ingresando...' : 'Ingresar al Panel'}
-            </button>
-          </form>
+
+          {!modoReportePublico ? (
+            <div className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4 text-xs">
+                <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="Correo" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
+                <input type="password" required value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="Contraseña" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
+                <button type="submit" disabled={loadingAuth} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all">
+                  {loadingAuth ? 'Ingresando...' : 'Ingresar al Panel'}
+                </button>
+              </form>
+
+              <div className="relative border-t border-slate-700 pt-4 text-center">
+                <button 
+                  onClick={() => setModoReportePublico(true)} 
+                  className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2"
+                >
+                  <span>📋</span> Registrar Incidencia (Técnicos de Campo)
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmitPublico} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-bold mb-1 uppercase">1. Selecciona tu ODPE</label>
+                <select value={odpeSeleccionada} onChange={(e) => setOdpeSeleccionada(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100">
+                  {listaOdpes.map((o, idx) => <option key={idx} value={o}>{o}</option>)}
+                </select>
+              </div>
+
+              <div className="p-3 bg-slate-900/60 border border-slate-700 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-[10px] uppercase text-blue-400">2. Datos de Soporte</span>
+                  {datosTecnicoExiste && (
+                    <span className="text-[10px] bg-emerald-900/80 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-700">
+                      ✓ Datos Auto-cargados
+                    </span>
+                  )}
+                </div>
+
+                <input type="text" required placeholder="Nombre del Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
+                <input type="text" required placeholder="Tu Nombre completo (Técnico)" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="text" required placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
+                  <input type="text" required placeholder="Celular" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="font-bold text-[10px] uppercase text-slate-400">3. Datos del Equipo Averiado</span>
+                <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-100">
+                  {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
+                </select>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200" />
+                  <input type="text" placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200" />
+                  <input type="text" placeholder="N° Serie" value={serie} onChange={(e) => setSerie(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200" />
+                </div>
+
+                <textarea rows={3} required placeholder="Describe la falla observada..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all">
+                  Enviar Incidencia
+                </button>
+                <button type="button" onClick={() => setModoReportePublico(false)} className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 rounded-xl">
+                  Volver al Login
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </main>
     );
   }
 
+  // VISTA PANEL ADMINISTRATIVO (LOGUEADO)
   return (
     <div className="min-h-screen flex bg-slate-100 font-sans text-slate-800">
-      
       {/* SIDEBAR NAVEGACIÓN */}
       <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 shadow-xl border-r border-slate-800">
         <div className="space-y-6">
-          
-          {/* Logo Sidebar */}
           <div className="flex items-center gap-3 px-2 py-3 border-b border-slate-800">
-            <div className="bg-blue-600 text-white font-black text-xl p-2 rounded-xl">POLLITOS DE MARLENE</div>
+            <div className="bg-blue-600 text-white font-black text-xl p-2 rounded-xl">ODPE</div>
             <div>
-              <h2 className="font-bold text-sm tracking-wide text-white">APP PARA GESTIONAR ODPES</h2>
-              <p className="text-[10px] text-slate-400">SUPERS</p>
+              <h2 className="font-bold text-sm tracking-wide text-white">INCIDENTE TRACKER</h2>
+              <p className="text-[10px] text-slate-400">Oficina Electoral</p>
             </div>
           </div>
 
-          {/* Menú de Navegación */}
           <nav className="space-y-1 text-xs">
-            <button 
-              onClick={() => setSeccionActiva('dashboard')} 
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                seccionActiva === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span>🏠</span> Dashboard
-            </button>
-
-            <button 
-              onClick={() => setSeccionActiva('incidentes')} 
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                seccionActiva === 'incidentes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span>📝</span> Incidentes
-            </button>
-
-            <button 
-              onClick={() => setSeccionActiva('odpes')} 
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                seccionActiva === 'odpes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span>🌐</span> Directorio ODPEs
-            </button>
-
-            <button 
-              onClick={() => setSeccionActiva('tecnicos')} 
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                seccionActiva === 'tecnicos' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span>👤</span> Técnicos & Personal
-            </button>
-
-            <button 
-              onClick={() => setSeccionActiva('reportes')} 
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                seccionActiva === 'reportes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span>📈</span> Reportes & Excel
-            </button>
-
-            <button 
-              onClick={() => setSeccionActiva('historial')} 
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                seccionActiva === 'historial' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span>📜</span> Historial
-            </button>
+            <button onClick={() => setSeccionActiva('dashboard')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🏠 Dashboard</button>
+            <button onClick={() => setSeccionActiva('incidentes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'incidentes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📝 Incidentes</button>
+            <button onClick={() => setSeccionActiva('odpes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'odpes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🌐 Directorio ODPEs</button>
+            <button onClick={() => setSeccionActiva('tecnicos')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'tecnicos' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>👤 Técnicos & Personal</button>
+            <button onClick={() => setSeccionActiva('reportes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'reportes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📈 Reportes & Excel</button>
+            <button onClick={() => setSeccionActiva('historial')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'historial' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📜 Historial</button>
           </nav>
         </div>
 
-        {/* Perfil Footer Sidebar */}
         <div className="border-t border-slate-800 pt-3 text-xs space-y-2">
           <div className="px-2">
             <p className="font-bold text-white truncate">{perfil?.nombre}</p>
             <p className="text-[10px] text-slate-400 truncate">{perfil?.correo}</p>
-            <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold ${
-              perfil?.rol === 'Admin' ? 'bg-purple-900/60 text-purple-300 border border-purple-700' :
-              perfil?.rol === 'Supervisor' ? 'bg-blue-900/60 text-blue-300 border border-blue-700' :
-              'bg-slate-800 text-slate-400'
-            }`}>
-              ROL: {perfil?.rol}
-            </span>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold bg-purple-900/60 text-purple-300 border border-purple-700">ROL: {perfil?.rol}</span>
           </div>
-          <button onClick={handleLogout} className="w-full bg-red-600/20 hover:bg-red-600/30 text-red-400 font-semibold py-2 rounded-xl text-center transition-all border border-red-800/40">
-            Cerrar Sesión
-          </button>
+          <button onClick={handleLogout} className="w-full bg-red-600/20 hover:bg-red-600/30 text-red-400 font-semibold py-2 rounded-xl border border-red-800/40">Cerrar Sesión</button>
         </div>
       </aside>
 
-      {/* ÁREA DE CONTENIDO PRINCIPAL */}
+      {/* ÁREA PRINCIPAL */}
       <main className="flex-1 p-6 overflow-y-auto space-y-6">
-        
-        {/* Header Superior */}
         <header className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-xl font-bold text-slate-900 uppercase">{seccionActiva}</h1>
@@ -454,7 +468,6 @@ export default function Home() {
           </button>
         </header>
 
-        {/* 1. SECCIÓN DASHBOARD */}
         {seccionActiva === 'dashboard' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -497,79 +510,43 @@ export default function Home() {
           </div>
         )}
 
-        {/* 2. SECCIÓN INCIDENTES (TU FORMULARIO Y TABLA) */}
         {seccionActiva === 'incidentes' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Formulario */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b pb-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider">
-                  {editandoId ? '✏️ Editar Registro' : '➕ Nueva Incidencia'}
-                </h2>
+                <h2 className="text-sm font-bold uppercase tracking-wider">{editandoId ? '✏️ Editar Registro' : '➕ Nueva Incidencia'}</h2>
                 {editandoId && <button onClick={limpiarFormulario} className="text-xs text-red-500 underline">Cancelar</button>}
               </div>
 
               {perfil?.rol === 'Visitante' ? (
-                <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500">
-                  🔒 El rol <strong>Visitante</strong> solo tiene permisos de lectura.
-                </div>
+                <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500">🔒 El rol <strong>Visitante</strong> solo tiene permisos de lectura.</div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-                  
-                  {/* ODPE Selector */}
                   <div>
                     <label className="block font-semibold mb-1 text-slate-600">ODPE AFECTADA</label>
-                    <div className="flex gap-1.5">
-                      <select value={odpeSeleccionada} onChange={(e) => setOdpeSeleccionada(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
-                        {listaOdpes.map((o, idx) => <option key={idx} value={o}>{o}</option>)}
-                      </select>
-                      {(perfil?.rol === 'Admin' || perfil?.rol === 'Supervisor') && (
-                        <button type="button" onClick={() => setModalCatalogos('odpe')} title="Agregar ODPE" className="bg-blue-600 text-white px-2.5 rounded-lg font-bold">+</button>
-                      )}
-                      {perfil?.rol === 'Admin' && (
-                        <button type="button" onClick={() => eliminarDelCatalogo('odpe', odpeSeleccionada)} title="Eliminar" className="bg-red-100 text-red-600 px-2 rounded-lg">🗑️</button>
-                      )}
-                    </div>
+                    <select value={odpeSeleccionada} onChange={(e) => setOdpeSeleccionada(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
+                      {listaOdpes.map((o, idx) => <option key={idx} value={o}>{o}</option>)}
+                    </select>
                   </div>
 
-                  {/* Responsables */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <span className="block font-bold text-[11px] uppercase text-slate-500">Responsables (Auto-fill por ODPE)</span>
-                    
-                    <div className="flex gap-1.5">
-                      <select value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white">
-                        <option value="">-- Supervisor --</option>
-                        {listaSupervisores.map((s, idx) => <option key={idx} value={s}>{s}</option>)}
-                      </select>
-                      {perfil?.rol === 'Admin' && (
-                        <>
-                          <button type="button" onClick={() => setModalCatalogos('supervisor')} className="bg-blue-600 text-white px-2 rounded font-bold">+</button>
-                          {supervisor && <button type="button" onClick={() => eliminarDelCatalogo('supervisor', supervisor)} className="bg-red-100 text-red-600 px-1.5 rounded">🗑️</button>}
-                        </>
-                      )}
+                    <div className="flex justify-between items-center">
+                      <span className="block font-bold text-[11px] uppercase text-slate-500">Responsables</span>
+                      {datosTecnicoExiste && <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">✓ Auto-cargado</span>}
                     </div>
-
+                    
+                    <input type="text" placeholder="Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white" />
                     <input type="text" placeholder="Nombre Técnico" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white" />
                     <div className="grid grid-cols-2 gap-2">
-                      <input type="text" placeholder="DNI (8 dígitos)" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white" />
-                      <input type="text" placeholder="Celular (9 dígitos)" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white" />
+                      <input type="text" placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white" />
+                      <input type="text" placeholder="Celular" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white" />
                     </div>
                   </div>
 
-                  {/* Selección de Equipo */}
                   <div className="space-y-2">
-                    <div className="flex gap-1.5">
-                      <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
-                        {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
-                      </select>
-                      {perfil?.rol === 'Admin' && (
-                        <>
-                          <button type="button" onClick={() => setModalCatalogos('equipo')} className="bg-blue-600 text-white px-2.5 rounded-lg font-bold">+</button>
-                          <button type="button" onClick={() => eliminarDelCatalogo('equipo', equipoSeleccionado)} className="bg-red-100 text-red-600 px-2 rounded-lg">🗑️</button>
-                        </>
-                      )}
-                    </div>
+                    <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
+                      {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
+                    </select>
 
                     <div className="grid grid-cols-3 gap-1.5">
                       <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="rounded p-1.5 text-[11px] border border-slate-300 bg-white" />
@@ -578,7 +555,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Tipo y Estado */}
                   <div className="grid grid-cols-2 gap-2">
                     <select value={tipoProblema} onChange={(e) => setTipoProblema(e.target.value)} className="w-full rounded-lg p-2 border border-slate-300 bg-white">
                       <option value="Hardware">Hardware</option>
@@ -586,29 +562,20 @@ export default function Home() {
                       <option value="Red">Red</option>
                     </select>
 
-                    <div className="flex gap-1">
-                      <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full rounded-lg p-2 border border-slate-300 bg-white">
-                        {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
-                      </select>
-                      {perfil?.rol === 'Admin' && (
-                        <>
-                          <button type="button" onClick={() => setModalCatalogos('estado')} className="bg-blue-600 text-white px-2 rounded-lg font-bold">+</button>
-                          <button type="button" onClick={() => eliminarDelCatalogo('estado', estado)} className="bg-red-100 text-red-600 px-1.5 rounded-lg">🗑️</button>
-                        </>
-                      )}
-                    </div>
+                    <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full rounded-lg p-2 border border-slate-300 bg-white">
+                      {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
+                    </select>
                   </div>
 
                   <textarea rows={2} placeholder="Observaciones..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full rounded-lg p-2 border border-slate-300 bg-white" />
 
-                  <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 font-bold py-2.5 rounded-xl text-white transition-all shadow-md">
+                  <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 font-bold py-2.5 rounded-xl text-white shadow-md">
                     {editandoId ? 'Actualizar Registro' : 'Guardar Incidencia'}
                   </button>
                 </form>
               )}
             </div>
 
-            {/* Tabla de Resultados */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b pb-4">
                 <form onSubmit={(e) => { e.preventDefault(); setBusquedaActiva(inputBusqueda); }}>
@@ -680,36 +647,25 @@ export default function Home() {
                 </div>
               )}
             </div>
-
           </div>
         )}
 
-        {/* 3. SECCIÓN ODPES */}
         {seccionActiva === 'odpes' && (
-          <DirectorioOdpes 
-            listaOdpes={listaOdpes} 
-            incidencias={incidencias} 
-            onUpdate={fetchIncidencias} 
-          />
+          <DirectorioOdpes listaOdpes={listaOdpes} incidencias={incidencias} onUpdate={fetchIncidencias} />
         )}
 
-        {/* 4. SECCIÓN TÉCNICOS */}
         {seccionActiva === 'tecnicos' && (
           <TablaTecnicos incidencias={incidencias} />
         )}
 
-        {/* 5. SECCIÓN REPORTES */}
         {seccionActiva === 'reportes' && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 text-center py-12">
             <h3 className="font-bold text-lg text-slate-800">Generar Reportes Oficiales</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">Descarga un consolidado completo en formato CSV/Excel con las fechas, responsables y estados de cada ODPE.</p>
-            <button onClick={exportarCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition-all text-xs">
-              📊 Descargar Excel Completo
-            </button>
+            <button onClick={exportarCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Completo</button>
           </div>
         )}
 
-        {/* 6. SECCIÓN HISTORIAL */}
         {seccionActiva === 'historial' && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-sm text-slate-800 uppercase">Historial de Registros</h3>
@@ -726,31 +682,9 @@ export default function Home() {
             </div>
           </div>
         )}
-
       </main>
 
-      {/* Modal Catálogos */}
-      {modalCatalogos && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 text-xs border border-slate-200">
-            <h3 className="text-sm font-bold uppercase">Agregar nuevo item a: {modalCatalogos}</h3>
-            <input 
-              type="text" 
-              autoFocus
-              placeholder="Ingresa la nueva opción..." 
-              value={inputNuevoCatalog} 
-              onChange={(e) => setInputNuevoCatalog(e.target.value)} 
-              className="w-full rounded-xl p-2.5 border border-slate-300 outline-none bg-slate-50"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => agregarAlCatalogo(modalCatalogos)} className="w-full bg-blue-600 text-white font-bold py-2 rounded-xl">Agregar</button>
-              <button onClick={() => setModalCatalogos(null)} className="w-full bg-slate-200 text-slate-800 font-bold py-2 rounded-xl">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Ver Ficha */}
+      {/* Modal Ficha Ver */}
       {modalVer && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 text-xs border border-slate-200">
@@ -781,7 +715,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
