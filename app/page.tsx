@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import DirectorioOdpes from '@/app/components/DirectorioOdpes';
 import TablaTecnicos from '@/app/components/TablaTecnicos';
+import PortalTecnico from '@/app/components/PortalTecnico';
 
 interface Incidencia {
   id: number;
@@ -337,87 +338,37 @@ export default function Home() {
   if (!sesion) {
     return (
       <main className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans text-slate-100">
-        <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl max-w-md w-full shadow-2xl space-y-6">
-          <div className="text-center space-y-2">
-            <div className="inline-block bg-blue-600 text-white font-black text-2xl px-4 py-2 rounded-xl mb-2">ODPE</div>
-            <h1 className="text-2xl font-bold tracking-wide">
-              {modoReportePublico ? 'Reporte de Campo' : 'Acceso al Sistema'}
-            </h1>
-          </div>
-
-          {!modoReportePublico ? (
-            <div className="space-y-4">
-              <form onSubmit={handleLogin} className="space-y-4 text-xs">
-                <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="Correo" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
-                <input type="password" required value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="Contraseña" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
-                <button type="submit" disabled={loadingAuth} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all">
-                  {loadingAuth ? 'Ingresando...' : 'Ingresar al Panel'}
-                </button>
-              </form>
-
-              <div className="relative border-t border-slate-700 pt-4 text-center">
-                <button 
-                  onClick={() => setModoReportePublico(true)} 
-                  className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2"
-                >
-                  <span>📋</span> Registrar Incidencia (Técnicos de Campo)
-                </button>
-              </div>
+        {!modoReportePublico ? (
+          <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl max-w-md w-full shadow-2xl space-y-6">
+            <div className="text-center space-y-2">
+              <div className="inline-block bg-blue-600 text-white font-black text-2xl px-4 py-2 rounded-xl mb-2">ODPE</div>
+              <h1 className="text-2xl font-bold tracking-wide">Acceso al Sistema</h1>
             </div>
-          ) : (
-            <form onSubmit={handleSubmitPublico} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-400 font-bold mb-1 uppercase">1. Selecciona tu ODPE</label>
-                <select value={odpeSeleccionada} onChange={(e) => setOdpeSeleccionada(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100">
-                  {listaOdpes.map((o, idx) => <option key={idx} value={o}>{o}</option>)}
-                </select>
-              </div>
 
-              <div className="p-3 bg-slate-900/60 border border-slate-700 rounded-xl space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-[10px] uppercase text-blue-400">2. Datos de Soporte</span>
-                  {datosTecnicoExiste && (
-                    <span className="text-[10px] bg-emerald-900/80 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-700">
-                      ✓ Datos Auto-cargados
-                    </span>
-                  )}
-                </div>
-
-                <input type="text" required placeholder="Nombre del Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
-                <input type="text" required placeholder="Tu Nombre completo (Técnico)" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="text" required placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
-                  <input type="text" required placeholder="Celular" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <span className="font-bold text-[10px] uppercase text-slate-400">3. Datos del Equipo Averiado</span>
-                <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-100">
-                  {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
-                </select>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200" />
-                  <input type="text" placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200" />
-                  <input type="text" placeholder="N° Serie" value={serie} onChange={(e) => setSerie(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200" />
-                </div>
-
-                <textarea rows={3} required placeholder="Describe la falla observada..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-200" />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all">
-                  Enviar Incidencia
-                </button>
-                <button type="button" onClick={() => setModoReportePublico(false)} className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 rounded-xl">
-                  Volver al Login
-                </button>
-              </div>
+            <form onSubmit={handleLogin} className="space-y-4 text-xs">
+              <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="Correo" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
+              <input type="password" required value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="Contraseña" className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-200" />
+              <button type="submit" disabled={loadingAuth} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all">
+                {loadingAuth ? 'Ingresando...' : 'Ingresar al Panel'}
+              </button>
             </form>
-          )}
-        </div>
+
+            <div className="relative border-t border-slate-700 pt-4 text-center">
+              <button 
+                onClick={() => setModoReportePublico(true)} 
+                className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <span>📋</span> Acceso Técnicos de Campo (DNI)
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* AQUÍ LLAMAMOS AL COMPONENTE MODULAR LIMPIO */
+          <PortalTecnico 
+            onVolver={() => setModoReportePublico(false)} 
+            onIncidenciaCreada={fetchIncidencias} 
+          />
+        )}
       </main>
     );
   }
