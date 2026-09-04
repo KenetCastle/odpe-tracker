@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import PortalTecnico from '@/app/components/PortalTecnico';
-import DirectorioOdpes from '@/app/components/DirectorioOdpes';
 import TablaTecnicos from '@/app/components/TablaTecnicos';
 
 interface Incidencia {
@@ -49,9 +48,16 @@ export default function Home() {
   const [vistaPapelera, setVistaPapelera] = useState(false);
   const [modalVer, setModalVer] = useState<Incidencia | null>(null);
 
+  // Modal Edición Rápida Soportes
+  const [modalEditarSoporte, setModalEditarSoporte] = useState<Incidencia | null>(null);
+  const [nuevoEstadoSoporte, setNuevoEstadoSoporte] = useState('Resuelto');
+  const [nuevasObsSoporte, setNuevasObsSoporte] = useState('');
+  const [guardandoSoporte, setGuardandoSoporte] = useState(false);
+
   // Catálogos
   const [listaPadron, setListaPadron] = useState<any[]>([]);
   const [busquedaOdpeInput, setBusquedaOdpeInput] = useState('');
+  const [busquedaDirectorioInput, setBusquedaDirectorioInput] = useState('');
   const [listaSupervisores, setListaSupervisores] = useState<string[]>([]);
   const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'IMPRESORA', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO', 'SWITCH/ROUTER']);
   const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto']);
@@ -83,7 +89,6 @@ export default function Home() {
   const [estado, setEstado] = useState('Reportado');
   const [descripcion, setDescripcion] = useState('');
 
-  // Archivos Admin
   const [archivoFoto1, setArchivoFoto1] = useState<File | null>(null);
   const [archivoFoto2, setArchivoFoto2] = useState<File | null>(null);
   const [enviandoAdmin, setEnviandoAdmin] = useState(false);
@@ -258,6 +263,28 @@ export default function Home() {
     setEnviandoAdmin(false);
   };
 
+  const handleActualizarEstadoSoporte = async () => {
+    if (!modalEditarSoporte) return;
+    setGuardandoSoporte(true);
+
+    const observacionActualizada = `${modalEditarSoporte.descripcion}\n\n[ACTUALIZACIÓN ATENCIÓN]: ${nuevasObsSoporte.trim()}`;
+
+    const { error } = await supabase.from('incidencias').update({
+      estado: nuevoEstadoSoporte,
+      descripcion: nuevasObsSoporte.trim() ? observacionActualizada : modalEditarSoporte.descripcion
+    }).eq('id', modalEditarSoporte.id);
+
+    if (error) {
+      alert('Error al actualizar soporte: ' + error.message);
+    } else {
+      alert('✅ Reporte actualizado con éxito');
+      setModalEditarSoporte(null);
+      setNuevasObsSoporte('');
+      fetchIncidencias();
+    }
+    setGuardandoSoporte(false);
+  };
+
   const moverAPapelera = async (id: number, enviarAPapelera: boolean) => {
     if (perfil?.rol === 'Visitante') return alert('Acción no permitida.');
     await supabase.from('incidencias').update({ en_papelera: enviarAPapelera }).eq('id', id);
@@ -341,6 +368,13 @@ export default function Home() {
     p.odpe_nombre.toLowerCase().includes(busquedaOdpeInput.toLowerCase())
   );
 
+  const directorioOdpesFiltrado = listaPadron.filter(p =>
+    p.odpe_nombre.toLowerCase().includes(busquedaDirectorioInput.toLowerCase()) ||
+    (p.tecnico_nombre || '').toLowerCase().includes(busquedaDirectorioInput.toLowerCase()) ||
+    (p.supervisor_nombre || '').toLowerCase().includes(busquedaDirectorioInput.toLowerCase()) ||
+    (p.dni || '').includes(busquedaDirectorioInput)
+  );
+
   const incidenciasFiltradas = incidencias.filter(item => {
     const coincidePapelera = vistaPapelera ? item.en_papelera : !item.en_papelera;
     const coincideEstado = filtroEstado === 'Todos los Estados' || item.estado === filtroEstado;
@@ -351,7 +385,10 @@ export default function Home() {
                              (item.descripcion || '').toLowerCase().includes(busquedaActiva.toLowerCase());
     
     const esReporteSoporte = item.creado_por?.includes('(Técnico de Campo)') || item.creado_por?.includes('Técnico');
+    
+    // FILTRADO AISLADO POR PESTAÑA
     if (seccionActiva === 'soportes') return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda && esReporteSoporte;
+    if (seccionActiva === 'incidentes') return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda && !esReporteSoporte;
 
     return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda;
   });
@@ -485,7 +522,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* PESTAÑA SOPORTES (SOLO TABLA A PANTALLA COMPLETA, SIN FORMULARIO) */}
+        {/* PESTAÑA REPORTES DE SOPORTES (AISLADA Y CON EDICIÓN DE ESTADO) */}
         {seccionActiva === 'soportes' && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b pb-4">
@@ -549,8 +586,9 @@ export default function Home() {
                         </span>
                       </td>
                       <td className="py-3 px-3 text-right space-x-1">
-                        <button onClick={() => setModalVer(item)} className="bg-slate-800 text-white px-2 py-1 rounded">🔍 Ver Ficha</button>
-                        <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-800 px-2 py-1 rounded">🗑️</button>
+                        <button onClick={() => setModalVer(item)} className="bg-slate-800 text-white px-2 py-1 rounded" title="Ver Detalles">🔍</button>
+                        <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); }} className="bg-blue-600 text-white px-2 py-1 rounded font-bold" title="Atender / Cambiar Estado">✏️ Atender</button>
+                        <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-800 px-2 py-1 rounded" title="Papelera">🗑️</button>
                       </td>
                     </tr>
                   ))}
@@ -560,7 +598,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* PESTAÑA INCIDENTES GENERALES (MANTENE FORMULARIO ADMIN Y TABLA) */}
+        {/* PESTAÑA INCIDENTES GENERALES */}
         {seccionActiva === 'incidentes' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -573,7 +611,6 @@ export default function Home() {
                 <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500">🔒 El rol <strong>Visitante</strong> solo tiene permisos de lectura.</div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-                  {/* SELECTOR DE ODPE LIMPIO (SOLO NOMBRE DE ODPE) */}
                   <div className="space-y-1">
                     <label className="font-semibold text-slate-600">ODPE AFECTADA</label>
                     <input
@@ -652,7 +689,6 @@ export default function Home() {
 
                   <textarea rows={2} placeholder="Observaciones..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full rounded-lg p-2 border border-slate-300 bg-white" />
 
-                  {/* ADJUNTAR FOTOS DESDE ADMIN */}
                   <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase">📷 Adjuntar Fotos (Opcional - Máx 2)</label>
                     <div className="grid grid-cols-2 gap-1.5">
@@ -743,16 +779,30 @@ export default function Home() {
           </div>
         )}
 
+        {/* PESTAÑA DIRECTORIO ODPES CON BUSCADOR */}
         {seccionActiva === 'odpes' && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <h2 className="font-bold text-sm text-slate-800 uppercase border-b pb-2">Directorio Oficial de ODPEs ({listaPadron.length} Sedes Cargadas)</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-b pb-3">
+              <h2 className="font-bold text-sm text-slate-800 uppercase">
+                Directorio Oficial de ODPEs ({directorioOdpesFiltrado.length} de {listaPadron.length} Sedes)
+              </h2>
+              <input
+                type="text"
+                placeholder="🔍 Buscar ODPE, Técnico, DNI..."
+                value={busquedaDirectorioInput}
+                onChange={(e) => setBusquedaDirectorioInput(e.target.value)}
+                className="w-full sm:w-72 bg-slate-50 border border-slate-300 rounded-xl p-2 text-xs font-semibold"
+              />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {listaPadron.map((p) => (
-                <div key={p.dni} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
-                  <span className="font-bold text-blue-600 block">{p.odpe_nombre}</span>
-                  <p><strong>Técnico:</strong> {p.tecnico_nombre || 'N/A'}</p>
-                  <p><strong>DNI / Celular:</strong> {p.dni} / {p.tecnico_celular || 'N/A'}</p>
-                  <p><strong>Supervisor:</strong> {p.supervisor_nombre || 'N/A'}</p>
+              {directorioOdpesFiltrado.map((p) => (
+                <div key={p.dni} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs hover:border-blue-400 transition-all">
+                  <span className="font-bold text-blue-600 block text-sm">{p.odpe_nombre}</span>
+                  <p className="text-slate-700"><strong>Técnico:</strong> {p.tecnico_nombre || 'Sin asignar'}</p>
+                  <p className="text-slate-600"><strong>DNI:</strong> {p.dni} | <strong>Celular:</strong> {p.tecnico_celular || 'S/N'}</p>
+                  <p className="text-slate-600"><strong>Supervisor:</strong> {p.supervisor_nombre || 'S/N'}</p>
+                  {p.jefe_odpe && <p className="text-slate-500 text-[11px]"><strong>Jefe ODPE:</strong> {p.jefe_odpe}</p>}
                 </div>
               ))}
             </div>
@@ -789,7 +839,54 @@ export default function Home() {
         )}
       </main>
 
-      {/* MODAL VER DETALLES DE FICHA CON IMÁGENES */}
+      {/* MODAL ATENDER / ATUALIZAR REPORTE DE SOPORTE */}
+      {modalEditarSoporte && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 text-xs border border-slate-200">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-bold text-sm text-slate-800">Atender Solicitud #{modalEditarSoporte.id} ({modalEditarSoporte.odpe_nombre})</h3>
+              <button onClick={() => setModalEditarSoporte(null)} className="font-bold">✕</button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Cambiar Estado del Reporte:</label>
+                <select
+                  value={nuevoEstadoSoporte}
+                  onChange={(e) => setNuevoEstadoSoporte(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800"
+                >
+                  {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Observaciones de la Solución:</label>
+                <textarea
+                  rows={3}
+                  placeholder="Detalla cómo se resolvió o el motivo del cambio de estado..."
+                  value={nuevasObsSoporte}
+                  onChange={(e) => setNuevasObsSoporte(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleActualizarEstadoSoporte}
+                  disabled={guardandoSoporte}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl shadow-md"
+                >
+                  {guardandoSoporte ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+                <button onClick={() => setModalEditarSoporte(null)} className="w-full bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl">Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLES FICHA (MUESTRA CELULAR DEL TÉCNICO CORRECTAMENTE) */}
       {modalVer && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 text-xs border border-slate-200">
@@ -809,11 +906,11 @@ export default function Home() {
                 <p><strong>Equipo:</strong> {modalVer.equipo_afectado} ({modalVer.marca || 'S/M'} - {modalVer.modelo || 'S/M'})</p>
                 <p><strong>N° Serie:</strong> <span className="font-mono">{modalVer.serie || 'N/A'}</span></p>
                 <p><strong>Supervisor:</strong> {modalVer.supervisor || 'N/A'}</p>
-                <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'} (DNI: {modalVer.tecnico_dni || 'S/N'})</p>
+                <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'}</p>
+                <p><strong>DNI / Celular Técnico:</strong> <span className="font-mono">{modalVer.tecnico_dni || 'S/N'} / {modalVer.tecnico_celular || 'S/N'}</span></p>
                 <p><strong>Observaciones:</strong> {modalVer.descripcion || 'Sin observaciones'}</p>
               </div>
 
-              {/* VISUALIZADOR DE IMÁGENES */}
               {(modalVer.foto_1 || modalVer.foto_2) && (
                 <div className="pt-2 border-t space-y-1">
                   <span className="font-bold text-slate-700 block text-[10px] uppercase">📷 Evidencia Fotográfica:</span>
