@@ -434,10 +434,10 @@ export default function Home() {
       <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 shadow-xl border-r border-slate-800">
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-2 py-3 border-b border-slate-800">
-            <div className="bg-blue-600 text-white font-black text-xl p-2 rounded-xl">ODPE</div>
+            <div className="bg-blue-600 text-white font-black text-xl p-2 rounded-xl">Gestor de ODPE</div>
             <div>
-              <h2 className="font-bold text-sm tracking-wide text-white">INCIDENTE TRACKER</h2>
-              <p className="text-[10px] text-slate-400">Oficina Electoral</p>
+              <h2 className="font-bold text-sm tracking-wide text-white">INCIDENCIAS</h2>
+              <p className="text-[10px] text-slate-400">Los Super</p>
             </div>
           </div>
 
