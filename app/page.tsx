@@ -15,17 +15,14 @@ import {
   History,
   Search,
   PlusCircle,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
   Archive,
-  Trash2,
-  Copy,
   LogOut,
   Camera,
-  Filter,
-  ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Palette,
+  Sun,
+  Moon,
+  Coffee
 } from 'lucide-react';
 
 interface Incidencia {
@@ -56,12 +53,17 @@ interface PerfilUsuario {
   rol: 'Admin' | 'Supervisor' | 'Visitante';
 }
 
+type Tema = 'calido-claro' | 'calido-oscuro' | 'corporativo-limpio';
+
 export default function Home() {
   const [sesion, setSesion] = useState<any>(null);
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loadingAuth, setLoadingAuth] = useState(false);
+
+  // ESTADO DE TEMA (PALETA DE COLORES)
+  const [tema, setTema] = useState<Tema>('calido-claro');
 
   const [modoReportePublico, setModoReportePublico] = useState(false);
   const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'odpes' | 'tecnicos' | 'reportes' | 'historial'>('incidentes');
@@ -115,6 +117,18 @@ export default function Home() {
   const [archivoFoto1, setArchivoFoto1] = useState<File | null>(null);
   const [archivoFoto2, setArchivoFoto2] = useState<File | null>(null);
   const [enviandoAdmin, setEnviandoAdmin] = useState(false);
+
+  // Guardar/Recuperar Tema Preferido
+  useEffect(() => {
+    const temaGuardado = localStorage.getItem('odpe_tracker_tema') as Tema;
+    if (temaGuardado) setTema(temaGuardado);
+  }, []);
+
+  const cambiarTema = (nuevoTema: Tema) => {
+    setTema(nuevoTema);
+    localStorage.setItem('odpe_tracker_tema', nuevoTema);
+    toast.success(`Tema cambiado a ${nuevoTema.replace('-', ' ')}`);
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -431,38 +445,69 @@ export default function Home() {
   const totalAlmacen = incidencias.filter(i => !i.en_papelera && i.estado === 'Almacén').length;
   const totalResueltos = incidencias.filter(i => !i.en_papelera && i.estado === 'Resuelto').length;
 
+  // CONFIGURACIÓN DE ESTILOS DINÁMICOS SEGÚN EL TEMA
+  const estilosTema = {
+    'calido-claro': {
+      bgMain: 'bg-[#FBF9F1] text-stone-800',
+      bgCard: 'bg-[#F3EFE0] border-stone-300/70 shadow-stone-200/50',
+      bgInput: 'bg-[#FFFDF7] border-stone-300 text-stone-800 focus:border-amber-600',
+      bgSidebar: 'bg-[#2C2825] text-amber-50 border-stone-800',
+      accentPrimary: 'bg-amber-700 hover:bg-amber-600 text-white',
+      badge: 'bg-amber-100 text-amber-900 border-amber-300',
+      subtext: 'text-stone-500'
+    },
+    'calido-oscuro': {
+      bgMain: 'bg-[#181615] text-stone-200',
+      bgCard: 'bg-[#221F1E] border-stone-800/80 shadow-black/40',
+      bgInput: 'bg-[#141211] border-stone-800 text-stone-200 focus:border-amber-500',
+      bgSidebar: 'bg-[#1C1A19] text-stone-200 border-stone-800/80',
+      accentPrimary: 'bg-amber-600 hover:bg-amber-500 text-white',
+      badge: 'bg-amber-950/60 text-amber-300 border-amber-800/60',
+      subtext: 'text-stone-400'
+    },
+    'corporativo-limpio': {
+      bgMain: 'bg-slate-100 text-slate-800',
+      bgCard: 'bg-white border-slate-200/80 shadow-slate-200/50',
+      bgInput: 'bg-slate-50 border-slate-300 text-slate-800 focus:border-blue-600',
+      bgSidebar: 'bg-slate-900 text-slate-100 border-slate-800',
+      accentPrimary: 'bg-blue-600 hover:bg-blue-500 text-white',
+      badge: 'bg-blue-100 text-blue-900 border-blue-200',
+      subtext: 'text-slate-500'
+    }
+  }[tema];
+
   if (!sesion) {
     return (
-      <main className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100">
+      <main className={`min-h-screen flex items-center justify-center p-4 font-sans ${estilosTema.bgMain}`}>
         <Toaster position="top-center" richColors />
         {!modoReportePublico ? (
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6">
+          <div className={`${estilosTema.bgCard} border p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6`}>
             <div className="text-center space-y-2">
-              <div className="inline-flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 font-black text-xl px-4 py-2 rounded-2xl mb-2">
-                <ShieldCheck className="w-6 h-6 text-blue-400" /> ODPE TRACKER
+              <div className="inline-flex items-center gap-2 bg-amber-600/10 border border-amber-600/20 text-amber-700 font-black text-xl px-4 py-2 rounded-2xl mb-2">
+                <ShieldCheck className="w-6 h-6 text-amber-700" /> ODPE TRACKER
               </div>
-              <h1 className="text-2xl font-black tracking-tight text-white">Acceso Administrativo</h1>
-              <p className="text-xs text-slate-400">Ingresa tus credenciales institucionales</p>
+              <h1 className="text-2xl font-black tracking-tight">Acceso Administrativo</h1>
+              <p className={`text-xs ${estilosTema.subtext}`}>Ingresa tus credenciales institucionales</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-400 font-bold mb-1 uppercase text-[10px]">Correo Electrónico</label>
-                <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="usuario@onpe.gob.pe" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-slate-200 focus:border-blue-500 focus:outline-none transition-all" />
+                <label className={`block font-bold mb-1 uppercase text-[10px] ${estilosTema.subtext}`}>Correo Electrónico</label>
+                <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="usuario@onpe.gob.pe" className={`w-full rounded-xl p-3.5 ${estilosTema.bgInput} focus:outline-none transition-all`} />
               </div>
               <div>
-                <label className="block text-slate-400 font-bold mb-1 uppercase text-[10px]">Contraseña</label>
-                <input type="password" required value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="••••••••" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-slate-200 focus:border-blue-500 focus:outline-none transition-all" />
+                <label className={`block font-bold mb-1 uppercase text-[10px] ${estilosTema.subtext}`}>Contraseña</label>
+                <input type="password" required value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="••••••••" className={`w-full rounded-xl p-3.5 ${estilosTema.bgInput} focus:outline-none transition-all`} />
               </div>
 
-              <button type="submit" disabled={loadingAuth} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/20 text-xs">
+              <button type="submit" disabled={loadingAuth} className={`w-full font-bold py-3.5 rounded-xl transition-all shadow-lg text-xs ${estilosTema.accentPrimary}`}>
                 {loadingAuth ? 'Validando...' : 'Ingresar al Panel'}
               </button>
             </form>
 
-            <div className="relative border-t border-slate-800 pt-4 text-center">
-              <button onClick={() => setModoReportePublico(true)} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2 border border-slate-700">
-                <Wrench className="w-4 h-4 text-emerald-400" /> Acceso Técnicos de Campo (DNI)
+            <div className="relative border-t border-stone-300/40 pt-4 text-center">
+              <button onClick={() => setModoReportePublico(true)} className={`w-full font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2 border ${estilosTema.bgCard}`}>
+                <Wrench className="w-4 h-4 text-emerald-600" /> Acceso Técnicos de Campo (DNI)
               </button>
             </div>
           </div>
@@ -474,70 +519,89 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-950 font-sans text-slate-100">
+    <div className={`min-h-screen flex font-sans ${estilosTema.bgMain}`}>
       <Toaster position="bottom-right" richColors />
       
-      {/* SIDEBAR NAVEGACIÓN MODERNO */}
-      <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 shadow-2xl border-r border-slate-800/80">
+      {/* SIDEBAR NAVEGACIÓN */}
+      <aside className={`w-64 ${estilosTema.bgSidebar} flex flex-col justify-between p-4 shadow-xl border-r`}>
         <div className="space-y-6">
-          <div className="flex items-center gap-3 px-2 py-3 border-b border-slate-800">
-            <div className="bg-blue-600/20 border border-blue-500/30 text-blue-400 p-2 rounded-2xl">
+          <div className="flex items-center gap-3 px-2 py-3 border-b border-stone-700/50">
+            <div className="bg-amber-600/20 border border-amber-500/30 text-amber-500 p-2 rounded-2xl">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="font-black text-sm tracking-wide text-white">ODPE TRACKER</h2>
-              <p className="text-[10px] text-slate-400 font-medium">Gestión Electoral Regional</p>
+              <h2 className="font-black text-sm tracking-wide">ODPE TRACKER</h2>
+              <p className="text-[10px] opacity-70 font-medium">Gestión Electoral Regional</p>
             </div>
           </div>
 
           <nav className="space-y-1.5 text-xs font-semibold">
-            <button onClick={() => setSeccionActiva('dashboard')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}>
+            <button onClick={() => setSeccionActiva('dashboard')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'dashboard' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <LayoutDashboard className="w-4 h-4" /> Dashboard
             </button>
-            <button onClick={() => setSeccionActiva('incidentes')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'incidentes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}>
+            <button onClick={() => setSeccionActiva('incidentes')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'incidentes' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <FileText className="w-4 h-4" /> Incidentes Generales
             </button>
-            <button onClick={() => setSeccionActiva('soportes')} className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'soportes' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}>
+            <button onClick={() => setSeccionActiva('soportes')} className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'soportes' ? 'bg-emerald-700 text-white' : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <span className="flex items-center gap-2.5"><Wrench className="w-4 h-4" /> Reportes Soportes</span>
-              <span className="bg-emerald-950/80 text-[9px] px-2 py-0.5 rounded-full text-emerald-400 border border-emerald-800/60 font-bold">Campo</span>
+              <span className="bg-emerald-950/80 text-[9px] px-2 py-0.5 rounded-full text-emerald-300 border border-emerald-700/60 font-bold">Campo</span>
             </button>
-            <button onClick={() => setSeccionActiva('odpes')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'odpes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}>
+            <button onClick={() => setSeccionActiva('odpes')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'odpes' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <Globe className="w-4 h-4" /> Directorio ODPEs ({listaPadron.length})
             </button>
-            <button onClick={() => setSeccionActiva('tecnicos')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'tecnicos' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}>
+            <button onClick={() => setSeccionActiva('tecnicos')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'tecnicos' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <Users className="w-4 h-4" /> Personal
             </button>
-            <button onClick={() => setSeccionActiva('reportes')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'reportes' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}>
+            <button onClick={() => setSeccionActiva('reportes')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'reportes' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <BarChart3 className="w-4 h-4" /> Exportar Excel
             </button>
-            <button onClick={() => setSeccionActiva('historial')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'historial' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}>
+            <button onClick={() => setSeccionActiva('historial')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'historial' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <History className="w-4 h-4" /> Historial
             </button>
           </nav>
         </div>
 
-        <div className="border-t border-slate-800/80 pt-3 text-xs space-y-2">
-          <div className="px-2">
-            <p className="font-bold text-white truncate">{perfil?.nombre}</p>
-            <p className="text-[10px] text-slate-400 truncate">{perfil?.correo}</p>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-900/40 text-purple-300 border border-purple-700/50">ROL: {perfil?.rol}</span>
+        {/* SELECTOR DE TEMAS EN EL SIDEBAR */}
+        <div className="space-y-3 border-t border-stone-700/50 pt-3 text-xs">
+          <div className="px-2 space-y-1.5">
+            <span className="text-[10px] font-bold uppercase opacity-60 flex items-center gap-1.5">
+              <Palette className="w-3.5 h-3.5" /> Paleta de Color
+            </span>
+            <div className="grid grid-cols-3 gap-1 bg-stone-900/50 p-1 rounded-xl border border-stone-800">
+              <button onClick={() => cambiarTema('calido-claro')} title="Cálido Claro" className={`p-1.5 rounded-lg flex justify-center ${tema === 'calido-claro' ? 'bg-amber-700 text-white' : 'opacity-60'}`}>
+                <Sun className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => cambiarTema('calido-oscuro')} title="Cálido Café Oscuro" className={`p-1.5 rounded-lg flex justify-center ${tema === 'calido-oscuro' ? 'bg-amber-600 text-white' : 'opacity-60'}`}>
+                <Coffee className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => cambiarTema('corporativo-limpio')} title="Corporativo Limpio" className={`p-1.5 rounded-lg flex justify-center ${tema === 'corporativo-limpio' ? 'bg-blue-600 text-white' : 'opacity-60'}`}>
+                <Moon className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <button onClick={handleLogout} className="w-full bg-red-950/30 hover:bg-red-900/40 text-red-400 font-bold py-2 rounded-xl border border-red-800/40 flex items-center justify-center gap-2 transition-all">
+
+          <div className="px-2">
+            <p className="font-bold truncate">{perfil?.nombre}</p>
+            <p className="text-[10px] opacity-70 truncate">{perfil?.correo}</p>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-900/40 text-amber-300 border border-amber-700/50">ROL: {perfil?.rol}</span>
+          </div>
+          <button onClick={handleLogout} className="w-full bg-red-900/20 hover:bg-red-800/30 text-red-400 font-bold py-2 rounded-xl border border-red-800/30 flex items-center justify-center gap-2 transition-all">
             <LogOut className="w-3.5 h-3.5" /> Cerrar Sesión
           </button>
         </div>
       </aside>
 
+      {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 p-6 overflow-y-auto space-y-6">
-        <header className="flex justify-between items-center bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl">
+        <header className={`flex justify-between items-center ${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm`}>
           <div>
-            <h1 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-              {seccionActiva === 'soportes' ? <Wrench className="w-5 h-5 text-emerald-400" /> : <FileText className="w-5 h-5 text-blue-400" />}
+            <h1 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+              {seccionActiva === 'soportes' ? <Wrench className="w-5 h-5 text-emerald-600" /> : <FileText className="w-5 h-5 text-amber-700" />}
               {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva}
             </h1>
-            <p className="text-xs text-slate-400 font-medium">Monitoreo y auditoría técnica para {listaPadron.length || 126} sedes regionales</p>
+            <p className={`text-xs ${estilosTema.subtext}`}>Monitoreo y auditoría técnica para {listaPadron.length || 126} sedes regionales</p>
           </div>
-          <button onClick={() => setVistaPapelera(!vistaPapelera)} className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${vistaPapelera ? 'bg-amber-950/50 text-amber-300 border-amber-800' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}`}>
+          <button onClick={() => setVistaPapelera(!vistaPapelera)} className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${vistaPapelera ? 'bg-amber-200/80 text-amber-900 border-amber-400' : `${estilosTema.bgCard} border-stone-300`}`}>
             <Archive className="w-4 h-4" /> {vistaPapelera ? 'Ver Activos' : 'Papelera'}
           </button>
         </header>
@@ -545,40 +609,40 @@ export default function Home() {
         {seccionActiva === 'dashboard' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Sedes</span>
-                <p className="text-3xl font-black text-white">{listaPadron.length}</p>
+              <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block mb-1 ${estilosTema.subtext}`}>Total Sedes</span>
+                <p className="text-3xl font-black">{listaPadron.length}</p>
               </div>
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl text-center">
-                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider block mb-1">Reportados</span>
-                <p className="text-3xl font-black text-red-500">{totalReportados}</p>
+              <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
+                <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider block mb-1">Reportados</span>
+                <p className="text-3xl font-black text-red-600">{totalReportados}</p>
               </div>
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl text-center">
-                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-1">En Proceso</span>
-                <p className="text-3xl font-black text-amber-500">{totalEnProceso}</p>
+              <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
+                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block mb-1">En Proceso</span>
+                <p className="text-3xl font-black text-amber-600">{totalEnProceso}</p>
               </div>
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl text-center">
-                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block mb-1">En Almacén</span>
-                <p className="text-3xl font-black text-purple-400">{totalAlmacen}</p>
+              <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
+                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider block mb-1">En Almacén</span>
+                <p className="text-3xl font-black text-purple-600">{totalAlmacen}</p>
               </div>
-              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl text-center">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">Resueltos</span>
-                <p className="text-3xl font-black text-emerald-500">{totalResueltos}</p>
+              <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block mb-1">Resueltos</span>
+                <p className="text-3xl font-black text-emerald-600">{totalResueltos}</p>
               </div>
             </div>
 
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-400" /> Últimas Incidencias Registradas
+            <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm`}>
+              <h3 className="text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                <History className="w-4 h-4 text-amber-700" /> Últimas Incidencias Registradas
               </h3>
               <div className="space-y-2">
                 {incidencias.slice(0, 5).map(i => (
-                  <div key={i.id} className="flex justify-between items-center p-3.5 bg-slate-950/60 rounded-xl text-xs border border-slate-800/60">
+                  <div key={i.id} className={`flex justify-between items-center p-3.5 rounded-xl text-xs border ${estilosTema.bgCard}`}>
                     <div>
-                      <span className="font-mono text-blue-400 font-bold">#{i.id} - {i.odpe_nombre}</span>
-                      <p className="text-slate-300 font-semibold">{i.equipo_afectado} ({i.marca || 'S/M'})</p>
+                      <span className="font-mono text-amber-700 font-bold">#{i.id} - {i.odpe_nombre}</span>
+                      <p className="font-semibold">{i.equipo_afectado} ({i.marca || 'S/M'})</p>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-slate-800 border border-slate-700 text-slate-300">{i.estado}</span>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-stone-200/50 border-stone-300">{i.estado}</span>
                   </div>
                 ))}
               </div>
@@ -588,17 +652,17 @@ export default function Home() {
 
         {/* PESTAÑA REPORTES DE SOPORTES */}
         {seccionActiva === 'soportes' && (
-          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-slate-800 pb-4">
+          <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-stone-300/40 pb-4">
               <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
-                <input type="text" placeholder="Buscar requerimiento..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 pl-9 text-xs text-white focus:outline-none focus:border-blue-500" />
+                <Search className="w-4 h-4 absolute left-3 top-3 opacity-50" />
+                <input type="text" placeholder="Buscar requerimiento..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className={`w-full rounded-xl p-2.5 pl-9 text-xs focus:outline-none ${estilosTema.bgInput}`} />
               </div>
-              <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+              <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={`w-full rounded-xl p-2.5 text-xs ${estilosTema.bgInput}`}>
                 <option value="Todos los Estados">Todos los Estados</option>
                 {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
               </select>
-              <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+              <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className={`w-full rounded-xl p-2.5 text-xs ${estilosTema.bgInput}`}>
                 <option value="Todos los Equipos">Todos los Equipos</option>
                 {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
               </select>
@@ -606,7 +670,7 @@ export default function Home() {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="font-bold border-b border-slate-800 uppercase text-slate-400 bg-slate-950/50">
+                <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
                   <tr>
                     <th className="py-3.5 px-3">ID / ODPE</th>
                     <th className="py-3.5 px-3">Equipo</th>
@@ -616,44 +680,44 @@ export default function Home() {
                     <th className="py-3.5 px-3 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-stone-300/40">
                   {incidenciasFiltradas.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
                       <td className="py-3.5 px-3">
-                        <span className="font-mono text-blue-400 font-bold">#{item.id}</span>
-                        <p className="font-bold text-white">{item.odpe_nombre}</p>
+                        <span className="font-mono text-amber-700 font-bold">#{item.id}</span>
+                        <p className="font-bold">{item.odpe_nombre}</p>
                       </td>
                       <td className="py-3.5 px-3">
-                        <p className="font-semibold text-slate-200">{item.equipo_afectado}</p>
-                        <p className="text-[10px] text-slate-400">Serie: {item.serie || 'S/S'}</p>
+                        <p className="font-semibold">{item.equipo_afectado}</p>
+                        <p className={`text-[10px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
                       </td>
                       <td className="py-3.5 px-3">
-                        <p className="font-semibold text-slate-200">{item.tecnico_nombre}</p>
-                        <p className="text-[10px] text-slate-400">Cel: {item.tecnico_celular || 'S/N'}</p>
+                        <p className="font-semibold">{item.tecnico_nombre}</p>
+                        <p className={`text-[10px] ${estilosTema.subtext}`}>Cel: {item.tecnico_celular || 'S/N'}</p>
                       </td>
                       <td className="py-3.5 px-3">
                         {item.foto_1 || item.foto_2 ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-950/80 text-blue-300 border border-blue-800">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                             <Camera className="w-3 h-3" /> {item.foto_1 && item.foto_2 ? '2 Fotos' : '1 Foto'}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-slate-500">Sin foto</span>
+                          <span className={`text-[10px] ${estilosTema.subtext}`}>Sin foto</span>
                         )}
                       </td>
                       <td className="py-3.5 px-3">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          item.estado === 'Resuelto' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800' :
-                          item.estado === 'En Proceso' ? 'bg-amber-950/80 text-amber-300 border border-amber-800' :
-                          item.estado === 'Almacén' ? 'bg-purple-950/80 text-purple-300 border border-purple-800' :
-                          'bg-red-950/80 text-red-300 border border-red-800'
+                          item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                          item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                          item.estado === 'Almacén' ? 'bg-purple-100 text-purple-900 border border-purple-300' :
+                          'bg-red-100 text-red-900 border border-red-300'
                         }`}>
                           {item.estado}
                         </span>
                       </td>
                       <td className="py-3.5 px-3 text-right space-x-1.5">
-                        <button onClick={() => setModalVer(item)} className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg font-bold transition-all" title="Ver Detalles">🔍 Ver</button>
-                        <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); }} className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all" title="Atender">✏️ Atender</button>
-                        <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 px-2.5 py-1.5 rounded-lg border border-amber-800/60 font-bold transition-all" title="Papelera">🗑️</button>
+                        <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-2.5 py-1.5 rounded-lg font-bold transition-all" title="Ver Detalles">🔍 Ver</button>
+                        <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); }} className={`px-2.5 py-1.5 rounded-lg font-bold shadow-md transition-all ${estilosTema.accentPrimary}`} title="Atender">✏️ Atender</button>
+                        <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 px-2.5 py-1.5 rounded-lg border border-amber-300 font-bold transition-all" title="Papelera">🗑️</button>
                       </td>
                     </tr>
                   ))}
@@ -666,31 +730,31 @@ export default function Home() {
         {/* PESTAÑA INCIDENTES GENERALES */}
         {seccionActiva === 'incidentes' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+            <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
+              <div className="flex justify-between items-center border-b border-stone-300/40 pb-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
                   <PlusCircle className="w-4 h-4" /> {editandoId ? 'Editar Registro' : 'Nueva Incidencia'}
                 </h2>
-                {editandoId && <button onClick={limpiarFormulario} className="text-xs text-red-400 underline">Cancelar</button>}
+                {editandoId && <button onClick={limpiarFormulario} className="text-xs text-red-600 underline">Cancelar</button>}
               </div>
 
               {perfil?.rol === 'Visitante' ? (
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-400">🔒 Permisos de solo lectura.</div>
+                <div className={`p-4 rounded-xl text-xs ${estilosTema.bgInput}`}>🔒 Permisos de solo lectura.</div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <label className="font-semibold text-slate-400">ODPE AFECTADA</label>
+                    <label className={`font-semibold ${estilosTema.subtext}`}>ODPE AFECTADA</label>
                     <input
                       type="text"
                       placeholder="Filtrar ODPE..."
                       value={busquedaOdpeInput}
                       onChange={(e) => setBusquedaOdpeInput(e.target.value)}
-                      className="w-full rounded-lg p-2 text-xs border border-slate-800 bg-slate-950 text-white mb-1 focus:border-blue-500"
+                      className={`w-full rounded-lg p-2 text-xs mb-1 ${estilosTema.bgInput}`}
                     />
                     <select
                       value={odpeSeleccionada}
                       onChange={(e) => handleCambioOdpe(e.target.value)}
-                      className="w-full rounded-lg p-2.5 border border-slate-800 bg-slate-950 font-bold text-white uppercase focus:border-blue-500"
+                      className={`w-full rounded-lg p-2.5 font-bold uppercase ${estilosTema.bgInput}`}
                     >
                       {odpesFiltradasPadron.map((p) => (
                         <option key={p.dni} value={p.odpe_nombre}>
@@ -700,26 +764,26 @@ export default function Home() {
                     </select>
                   </div>
 
-                  <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2">
+                  <div className={`p-3 rounded-xl border border-stone-300/50 space-y-2`}>
                     <div className="flex justify-between items-center">
-                      <span className="block font-bold text-[10px] uppercase text-slate-400">Responsables de Sede</span>
-                      {datosTecnicoExiste && <span className="text-[9px] bg-emerald-950/80 text-emerald-400 border border-emerald-800 font-bold px-1.5 py-0.5 rounded-full">✓ Auto-rellenado</span>}
+                      <span className={`block font-bold text-[10px] uppercase ${estilosTema.subtext}`}>Responsables de Sede</span>
+                      {datosTecnicoExiste && <span className="text-[9px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-1.5 py-0.5 rounded-full">✓ Auto-rellenado</span>}
                     </div>
                     
-                    <input type="text" placeholder="Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full rounded-lg p-2 border border-slate-800 bg-slate-900 text-white font-semibold" />
-                    <input type="text" placeholder="Nombre Técnico" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className="w-full rounded-lg p-2 border border-slate-800 bg-slate-900 text-white font-semibold" />
+                    <input type="text" placeholder="Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className={`w-full rounded-lg p-2 font-semibold ${estilosTema.bgInput}`} />
+                    <input type="text" placeholder="Nombre Técnico" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className={`w-full rounded-lg p-2 font-semibold ${estilosTema.bgInput}`} />
                     <div className="grid grid-cols-2 gap-2">
-                      <input type="text" placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="rounded-lg p-2 border border-slate-800 bg-slate-900 text-white font-mono" />
-                      <input type="text" placeholder="Celular" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className="rounded-lg p-2 border border-slate-800 bg-slate-900 text-white font-mono" />
+                      <input type="text" placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className={`rounded-lg p-2 font-mono ${estilosTema.bgInput}`} />
+                      <input type="text" placeholder="Celular" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className={`rounded-lg p-2 font-mono ${estilosTema.bgInput}`} />
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex justify-between items-center mb-1">
-                      <label className="font-semibold text-slate-400">EQUIPO AFECTADO</label>
-                      <button type="button" onClick={() => setModalCatalogos('equipo')} className="text-[10px] text-blue-400 hover:underline font-bold">+ Agregar Tipo</button>
+                      <label className={`font-semibold ${estilosTema.subtext}`}>EQUIPO AFECTADO</label>
+                      <button type="button" onClick={() => setModalCatalogos('equipo')} className="text-[10px] text-amber-700 hover:underline font-bold">+ Agregar Tipo</button>
                     </div>
-                    <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-800 bg-slate-950 text-white">
+                    <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className={`w-full rounded-lg p-2.5 ${estilosTema.bgInput}`}>
                       {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
                       <option value="OTRO">⚠️ OTRO EQUIPO...</option>
                     </select>
@@ -731,68 +795,68 @@ export default function Home() {
                         placeholder="Nombre del equipo..."
                         value={otroEquipoAdmin}
                         onChange={(e) => setOtroEquipoAdmin(e.target.value)}
-                        className="w-full rounded-lg p-2 border border-amber-500 bg-amber-950/40 text-amber-300 uppercase font-bold"
+                        className="w-full rounded-lg p-2 border border-amber-500 bg-amber-50 text-amber-900 uppercase font-bold"
                       />
                     )}
 
                     <div className="grid grid-cols-3 gap-1.5">
-                      <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="rounded-lg p-2 text-[11px] border border-slate-800 bg-slate-950 text-white" />
-                      <input type="text" placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} className="rounded-lg p-2 text-[11px] border border-slate-800 bg-slate-950 text-white" />
-                      <input type="text" placeholder="N° Serie" value={serie} onChange={(e) => setSerie(e.target.value)} className="rounded-lg p-2 text-[11px] border border-slate-800 bg-slate-950 text-white" />
+                      <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className={`rounded-lg p-2 text-[11px] ${estilosTema.bgInput}`} />
+                      <input type="text" placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} className={`rounded-lg p-2 text-[11px] ${estilosTema.bgInput}`} />
+                      <input type="text" placeholder="N° Serie" value={serie} onChange={(e) => setSerie(e.target.value)} className={`rounded-lg p-2 text-[11px] ${estilosTema.bgInput}`} />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <select value={tipoProblema} onChange={(e) => setTipoProblema(e.target.value)} className="w-full rounded-lg p-2 border border-slate-800 bg-slate-950 text-white">
+                    <select value={tipoProblema} onChange={(e) => setTipoProblema(e.target.value)} className={`w-full rounded-lg p-2 ${estilosTema.bgInput}`}>
                       <option value="Hardware">Hardware</option>
                       <option value="Software">Software</option>
                       <option value="Red">Red</option>
                     </select>
 
-                    <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full rounded-lg p-2 border border-slate-800 bg-slate-950 text-white">
+                    <select value={estado} onChange={(e) => setEstado(e.target.value)} className={`w-full rounded-lg p-2 ${estilosTema.bgInput}`}>
                       {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
                     </select>
                   </div>
 
-                  <textarea rows={2} placeholder="Observaciones..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full rounded-xl p-2.5 border border-slate-800 bg-slate-950 text-white" />
+                  <textarea rows={2} placeholder="Observaciones..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className={`w-full rounded-xl p-2.5 ${estilosTema.bgInput}`} />
 
-                  <div className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800 space-y-1.5">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase">📷 Adjuntar Fotos (Opcional - Máx 2)</label>
+                  <div className={`p-2.5 rounded-xl border border-stone-300/40 space-y-1.5`}>
+                    <label className={`block text-[10px] font-bold uppercase ${estilosTema.subtext}`}>📷 Adjuntar Fotos (Opcional - Máx 2)</label>
                     <div className="grid grid-cols-2 gap-1.5">
-                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto1(e.target.files?.[0] || null)} className="text-[9px] text-slate-400 w-full" />
-                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto2(e.target.files?.[0] || null)} className="text-[9px] text-slate-400 w-full" />
+                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto1(e.target.files?.[0] || null)} className="text-[9px] w-full" />
+                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto2(e.target.files?.[0] || null)} className="text-[9px] w-full" />
                     </div>
                   </div>
 
-                  <button type="submit" disabled={enviandoAdmin} className="w-full bg-blue-600 hover:bg-blue-500 font-bold py-3 rounded-xl text-white shadow-lg shadow-blue-600/20 transition-all">
+                  <button type="submit" disabled={enviandoAdmin} className={`w-full font-bold py-3 rounded-xl shadow-lg transition-all ${estilosTema.accentPrimary}`}>
                     {enviandoAdmin ? 'Guardando...' : editandoId ? 'Actualizar Registro' : 'Guardar Incidencia'}
                   </button>
                 </form>
               )}
             </div>
 
-            <div className="lg:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-slate-800 pb-4">
+            <div className={`lg:col-span-2 ${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-stone-300/40 pb-4">
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
-                  <input type="text" placeholder="Buscar..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 pl-9 text-xs text-white" />
+                  <Search className="w-4 h-4 absolute left-3 top-3 opacity-50" />
+                  <input type="text" placeholder="Buscar..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className={`w-full rounded-xl p-2.5 pl-9 text-xs ${estilosTema.bgInput}`} />
                 </div>
-                <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+                <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={`w-full rounded-xl p-2.5 text-xs ${estilosTema.bgInput}`}>
                   <option value="Todos los Estados">Todos los Estados</option>
                   {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
                 </select>
-                <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+                <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className={`w-full rounded-xl p-2.5 text-xs ${estilosTema.bgInput}`}>
                   <option value="Todos los Equipos">Todos los Equipos</option>
                   {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
                 </select>
               </div>
 
               {loading ? (
-                <p className="text-xs py-8 text-center text-slate-500">Cargando...</p>
+                <p className={`text-xs py-8 text-center ${estilosTema.subtext}`}>Cargando...</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="font-bold border-b border-slate-800 uppercase text-slate-400 bg-slate-950/50">
+                    <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
                       <tr>
                         <th className="py-3.5 px-3">ID / ODPE</th>
                         <th className="py-3.5 px-3">Equipo</th>
@@ -800,36 +864,36 @@ export default function Home() {
                         <th className="py-3.5 px-3 text-right">Acciones</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-stone-300/40">
                       {incidenciasFiltradas.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
                           <td className="py-3.5 px-3">
-                            <span className="font-mono text-blue-400 font-bold">#{item.id}</span>
-                            <p className="font-bold text-white">{item.odpe_nombre}</p>
-                            <p className="text-[10px] text-slate-500">Por: {item.creado_por || 'Sistema'}</p>
+                            <span className="font-mono text-amber-700 font-bold">#{item.id}</span>
+                            <p className="font-bold">{item.odpe_nombre}</p>
+                            <p className={`text-[10px] ${estilosTema.subtext}`}>Por: {item.creado_por || 'Sistema'}</p>
                           </td>
                           <td className="py-3.5 px-3">
-                            <p className="font-semibold text-slate-200">{item.equipo_afectado}</p>
-                            <p className="text-[10px] text-slate-400">Serie: {item.serie || 'S/S'}</p>
+                            <p className="font-semibold">{item.equipo_afectado}</p>
+                            <p className={`text-[10px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
                           </td>
                           <td className="py-3.5 px-3">
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              item.estado === 'Resuelto' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800' :
-                              item.estado === 'En Proceso' ? 'bg-amber-950/80 text-amber-300 border border-amber-800' :
-                              item.estado === 'Almacén' ? 'bg-purple-950/80 text-purple-300 border border-purple-800' :
-                              'bg-red-950/80 text-red-300 border border-red-800'
+                              item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                              item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                              item.estado === 'Almacén' ? 'bg-purple-100 text-purple-900 border border-purple-300' :
+                              'bg-red-100 text-red-900 border border-red-300'
                             }`}>
                               {item.estado}
                             </span>
                           </td>
                           <td className="py-3.5 px-3 text-right space-x-1.5">
-                            <button onClick={() => setModalVer(item)} className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded font-bold">🔍</button>
-                            <button onClick={() => copiarResumen(item)} title="Copiar" className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded font-bold">📋</button>
+                            <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-2 py-1 rounded font-bold">🔍</button>
+                            <button onClick={() => copiarResumen(item)} title="Copiar" className="bg-stone-300/60 hover:bg-stone-300 px-2 py-1 rounded font-bold">📋</button>
 
                             {perfil?.rol !== 'Visitante' && !vistaPapelera && (
                               <>
-                                <button onClick={() => cargarParaEditar(item)} className="bg-blue-950/80 hover:bg-blue-900/80 text-blue-300 border border-blue-800 px-2 py-1 rounded font-bold">✏️</button>
-                                <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border border-amber-800 px-2 py-1 rounded font-bold">🗑️</button>
+                                <button onClick={() => cargarParaEditar(item)} className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-1 rounded font-bold">✏️</button>
+                                <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-1 rounded font-bold">🗑️</button>
                               </>
                             )}
 
@@ -849,30 +913,30 @@ export default function Home() {
 
         {/* PESTAÑA DIRECTORIO ODPES */}
         {seccionActiva === 'odpes' && (
-          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-b border-slate-800 pb-3">
-              <h2 className="font-bold text-sm text-white uppercase flex items-center gap-2">
-                <Globe className="w-4 h-4 text-blue-400" /> Directorio Oficial ({directorioOdpesFiltrado.length} de {listaPadron.length} Sedes)
+          <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-b border-stone-300/40 pb-3">
+              <h2 className="font-bold text-sm uppercase flex items-center gap-2">
+                <Globe className="w-4 h-4 text-amber-700" /> Directorio Oficial ({directorioOdpesFiltrado.length} de {listaPadron.length} Sedes)
               </h2>
               <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                <Search className="w-4 h-4 absolute left-3 top-2.5 opacity-50" />
                 <input
                   type="text"
                   placeholder="Buscar ODPE, Técnico, DNI..."
                   value={busquedaDirectorioInput}
                   onChange={(e) => setBusquedaDirectorioInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 pl-9 text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
+                  className={`w-full rounded-xl p-2 pl-9 text-xs font-semibold ${estilosTema.bgInput}`}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {directorioOdpesFiltrado.map((p) => (
-                <div key={p.dni} className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-1.5 text-xs hover:border-blue-500/50 transition-all">
-                  <span className="font-black text-blue-400 block text-sm tracking-wide">{p.odpe_nombre}</span>
-                  <p className="text-slate-300"><strong>Técnico:</strong> {p.tecnico_nombre || 'Sin asignar'}</p>
-                  <p className="text-slate-400 font-mono"><strong>DNI:</strong> {p.dni} | <strong>Celular:</strong> {p.tecnico_celular || 'S/N'}</p>
-                  <p className="text-slate-400"><strong>Supervisor:</strong> {p.supervisor_nombre || 'S/N'}</p>
+                <div key={p.dni} className={`p-4 rounded-2xl space-y-1.5 text-xs border transition-all ${estilosTema.bgCard}`}>
+                  <span className="font-black text-amber-800 block text-sm tracking-wide">{p.odpe_nombre}</span>
+                  <p><strong>Técnico:</strong> {p.tecnico_nombre || 'Sin asignar'}</p>
+                  <p className="font-mono"><strong>DNI:</strong> {p.dni} | <strong>Celular:</strong> {p.tecnico_celular || 'S/N'}</p>
+                  <p><strong>Supervisor:</strong> {p.supervisor_nombre || 'S/N'}</p>
                 </div>
               ))}
             </div>
@@ -884,27 +948,27 @@ export default function Home() {
         )}
 
         {seccionActiva === 'reportes' && (
-          <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl space-y-4 text-center py-16 max-w-xl mx-auto">
-            <BarChart3 className="w-12 h-12 text-emerald-400 mx-auto" />
-            <h3 className="font-bold text-xl text-white">Consolidado Oficial de Incidentes</h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto">Descarga un reporte completo en formato CSV/Excel con las fechas, responsables y estados de cada ODPE.</p>
-            <button onClick={exportarCSV} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 transition-all text-xs">📊 Descargar Excel Completo</button>
+          <div className={`${estilosTema.bgCard} p-8 rounded-2xl border shadow-sm space-y-4 text-center py-16 max-w-xl mx-auto`}>
+            <BarChart3 className="w-12 h-12 text-emerald-600 mx-auto" />
+            <h3 className="font-bold text-xl">Consolidado Oficial de Incidentes</h3>
+            <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte completo en formato CSV/Excel con las fechas, responsables y estados de cada ODPE.</p>
+            <button onClick={exportarCSV} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Completo</button>
           </div>
         )}
 
         {seccionActiva === 'historial' && (
-          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-            <h3 className="font-bold text-sm text-white uppercase tracking-wider flex items-center gap-2">
-              <History className="w-4 h-4 text-blue-400" /> Historial de Actividad
+          <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
+            <h3 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+              <History className="w-4 h-4 text-amber-700" /> Historial de Actividad
             </h3>
             <div className="space-y-2 text-xs">
               {incidencias.map(i => (
-                <div key={i.id} className="p-3.5 bg-slate-950/60 border border-slate-800/60 rounded-xl flex justify-between items-center">
+                <div key={i.id} className={`p-3.5 rounded-xl flex justify-between items-center border ${estilosTema.bgCard}`}>
                   <div>
-                    <p className="font-bold text-white">Incidencia #{i.id} creada por {i.creado_por || 'Sistema'}</p>
-                    <p className="text-slate-400">{i.odpe_nombre} - {i.equipo_afectado}</p>
+                    <p className="font-bold">Incidencia #{i.id} creada por {i.creado_por || 'Sistema'}</p>
+                    <p className={estilosTema.subtext}>{i.odpe_nombre} - {i.equipo_afectado}</p>
                   </div>
-                  <span className="text-[10px] text-slate-500 font-mono">{new Date(i.created_at).toLocaleString()}</span>
+                  <span className="text-[10px] font-mono opacity-60">{new Date(i.created_at).toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -915,32 +979,32 @@ export default function Home() {
       {/* MODAL EDITAR SOPORTE */}
       {modalEditarSoporte && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 rounded-2xl max-w-md w-full p-6 space-y-4 text-xs border border-slate-800 text-slate-100 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-              <h3 className="font-bold text-sm text-white">Atender Solicitud #{modalEditarSoporte.id} ({modalEditarSoporte.odpe_nombre})</h3>
-              <button onClick={() => setModalEditarSoporte(null)} className="font-bold text-slate-400 hover:text-white">✕</button>
+          <div className={`${estilosTema.bgCard} rounded-2xl max-w-md w-full p-6 space-y-4 text-xs border shadow-2xl`}>
+            <div className="flex justify-between items-center border-b border-stone-300/40 pb-2">
+              <h3 className="font-bold text-sm">Atender Solicitud #{modalEditarSoporte.id} ({modalEditarSoporte.odpe_nombre})</h3>
+              <button onClick={() => setModalEditarSoporte(null)} className="font-bold">✕</button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block font-bold text-slate-400 mb-1">Cambiar Estado:</label>
+                <label className="block font-bold mb-1">Cambiar Estado:</label>
                 <select
                   value={nuevoEstadoSoporte}
                   onChange={(e) => setNuevoEstadoSoporte(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 font-bold text-white"
+                  className={`w-full rounded-xl p-2.5 font-bold ${estilosTema.bgInput}`}
                 >
                   {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-400 mb-1">Observaciones de la Solución:</label>
+                <label className="block font-bold mb-1">Observaciones de la Solución:</label>
                 <textarea
                   rows={3}
                   placeholder="Detalla cómo se resolvió..."
                   value={nuevasObsSoporte}
                   onChange={(e) => setNuevasObsSoporte(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                  className={`w-full rounded-xl p-2.5 ${estilosTema.bgInput}`}
                 />
               </div>
 
@@ -948,11 +1012,11 @@ export default function Home() {
                 <button
                   onClick={handleActualizarEstadoSoporte}
                   disabled={guardandoSoporte}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-emerald-600/20"
+                  className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl shadow-lg"
                 >
                   {guardandoSoporte ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
-                <button onClick={() => setModalEditarSoporte(null)} className="w-full bg-slate-800 text-slate-300 font-bold py-2.5 rounded-xl">Cancelar</button>
+                <button onClick={() => setModalEditarSoporte(null)} className="w-full bg-stone-300/50 text-stone-800 font-bold py-2.5 rounded-xl">Cancelar</button>
               </div>
             </div>
           </div>
@@ -962,39 +1026,39 @@ export default function Home() {
       {/* MODAL DETALLES FICHA */}
       {modalVer && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 rounded-2xl max-w-lg w-full p-6 space-y-4 text-xs border border-slate-800 text-slate-100 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-white">DETALLE TÉCNICO #{modalVer.id}</h3>
-              <button onClick={() => setModalVer(null)} className="font-bold text-slate-400 hover:text-white">✕</button>
+          <div className={`${estilosTema.bgCard} rounded-2xl max-w-lg w-full p-6 space-y-4 text-xs border shadow-2xl`}>
+            <div className="flex justify-between items-center border-b border-stone-300/40 pb-3">
+              <h3 className="text-sm font-bold">DETALLE TÉCNICO #{modalVer.id}</h3>
+              <button onClick={() => setModalVer(null)} className="font-bold">✕</button>
             </div>
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-              <div className="grid grid-cols-2 gap-2 border-b border-slate-800 pb-2 text-[11px]">
-                <p><strong>ODPE:</strong> <span className="text-blue-400 font-bold">{modalVer.odpe_nombre}</span></p>
-                <p><strong>Estado:</strong> <span className="font-bold text-emerald-400">{modalVer.estado}</span></p>
-                <p><strong>Creado por:</strong> <span className="font-semibold text-purple-400">{modalVer.creado_por || 'Sistema'}</span></p>
+            <div className={`p-4 rounded-xl border border-stone-300/40 space-y-3 ${estilosTema.bgInput}`}>
+              <div className="grid grid-cols-2 gap-2 border-b border-stone-300/40 pb-2 text-[11px]">
+                <p><strong>ODPE:</strong> <span className="text-amber-700 font-bold">{modalVer.odpe_nombre}</span></p>
+                <p><strong>Estado:</strong> <span className="font-bold text-emerald-600">{modalVer.estado}</span></p>
+                <p><strong>Creado por:</strong> <span className="font-semibold text-purple-700">{modalVer.creado_por || 'Sistema'}</span></p>
                 <p><strong>Fecha:</strong> {new Date(modalVer.created_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' })}</p>
               </div>
 
               <div className="space-y-1.5 pt-1">
                 <p><strong>Equipo:</strong> {modalVer.equipo_afectado} ({modalVer.marca || 'S/M'} - {modalVer.modelo || 'S/M'})</p>
-                <p><strong>N° Serie:</strong> <span className="font-mono text-slate-300">{modalVer.serie || 'N/A'}</span></p>
+                <p><strong>N° Serie:</strong> <span className="font-mono">{modalVer.serie || 'N/A'}</span></p>
                 <p><strong>Supervisor:</strong> {modalVer.supervisor || 'N/A'}</p>
                 <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'}</p>
-                <p><strong>DNI / Celular Técnico:</strong> <span className="font-mono text-slate-300">{modalVer.tecnico_dni || 'S/N'} / {modalVer.tecnico_celular || 'S/N'}</span></p>
+                <p><strong>DNI / Celular Técnico:</strong> <span className="font-mono">{modalVer.tecnico_dni || 'S/N'} / {modalVer.tecnico_celular || 'S/N'}</span></p>
                 <p><strong>Observaciones:</strong> {modalVer.descripcion || 'Sin observaciones'}</p>
               </div>
 
               {(modalVer.foto_1 || modalVer.foto_2) && (
-                <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <span className="font-bold text-slate-400 block text-[10px] uppercase">📷 Evidencia Fotográfica:</span>
+                <div className="pt-2 border-t border-stone-300/40 space-y-2">
+                  <span className="font-bold opacity-70 block text-[10px] uppercase">📷 Evidencia Fotográfica:</span>
                   <div className="grid grid-cols-2 gap-2">
                     {modalVer.foto_1 && (
-                      <a href={modalVer.foto_1} target="_blank" rel="noopener noreferrer" className="block border border-slate-800 rounded-xl overflow-hidden hover:opacity-80">
+                      <a href={modalVer.foto_1} target="_blank" rel="noopener noreferrer" className="block border rounded-xl overflow-hidden hover:opacity-80">
                         <img src={modalVer.foto_1} alt="Evidencia 1" className="w-full h-28 object-cover" />
                       </a>
                     )}
                     {modalVer.foto_2 && (
-                      <a href={modalVer.foto_2} target="_blank" rel="noopener noreferrer" className="block border border-slate-800 rounded-xl overflow-hidden hover:opacity-80">
+                      <a href={modalVer.foto_2} target="_blank" rel="noopener noreferrer" className="block border rounded-xl overflow-hidden hover:opacity-80">
                         <img src={modalVer.foto_2} alt="Evidencia 2" className="w-full h-28 object-cover" />
                       </a>
                     )}
@@ -1003,8 +1067,8 @@ export default function Home() {
               )}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => copiarResumen(modalVer)} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-blue-600/20">Copiar Ficha</button>
-              <button onClick={() => setModalVer(null)} className="w-full bg-slate-800 text-slate-300 font-bold py-2.5 rounded-xl">Cerrar</button>
+              <button onClick={() => copiarResumen(modalVer)} className={`w-full font-bold py-2.5 rounded-xl shadow-lg ${estilosTema.accentPrimary}`}>Copiar Ficha</button>
+              <button onClick={() => setModalVer(null)} className="w-full bg-stone-300/60 text-stone-800 font-bold py-2.5 rounded-xl">Cerrar</button>
             </div>
           </div>
         </div>
