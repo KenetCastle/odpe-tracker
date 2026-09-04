@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-
 interface DatosPadron {
   dni: string;
   odpe_nombre: string;

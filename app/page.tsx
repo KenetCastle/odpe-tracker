@@ -58,7 +58,7 @@ export default function Home() {
   const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'IMPRESORA', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO', 'SWITCH/ROUTER']);
   const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto']);
 
-  const [modalCatalogos, setModalCatalogos] = useState<'odpe' | 'supervisor' | null>(null);
+  const [modalCatalogos, setModalCatalogos] = useState<'odpe' | 'supervisor' | 'equipo' | null>(null);
   const [inputNuevoCatalog, setInputNuevoCatalog] = useState('');
 
   // Filtros
@@ -150,7 +150,7 @@ export default function Home() {
     fetchIncidencias();
   }, []);
 
-  const agregarAlCatalogo = (tipo: 'odpe' | 'supervisor') => {
+  const agregarAlCatalogo = (tipo: 'odpe' | 'supervisor' | 'equipo') => {
     if (!inputNuevoCatalog.trim()) return;
     const val = inputNuevoCatalog.trim();
 
@@ -161,6 +161,10 @@ export default function Home() {
     if (tipo === 'supervisor' && !listaSupervisores.includes(val)) {
       setListaSupervisores([...listaSupervisores, val]);
       setSupervisor(val);
+    }
+    if (tipo === 'equipo' && !listaEquipos.includes(val)) {
+      setListaEquipos([...listaEquipos, val.toUpperCase()]);
+      setEquipoSeleccionado(val.toUpperCase());
     }
 
     setInputNuevoCatalog('');
@@ -281,7 +285,6 @@ export default function Home() {
                              (item.odpe_nombre || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
                              (item.descripcion || '').toLowerCase().includes(busquedaActiva.toLowerCase());
     
-    // Filtrar solicitudes enviadas por técnicos de campo si está activa la pestaña 'soportes'
     const esReporteSoporte = item.creado_por?.includes('(Técnico de Campo)') || item.creado_por?.includes('Técnico');
     if (seccionActiva === 'soportes') return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda && esReporteSoporte;
 
@@ -351,7 +354,6 @@ export default function Home() {
             <button onClick={() => setSeccionActiva('dashboard')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🏠 Dashboard</button>
             <button onClick={() => setSeccionActiva('incidentes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'incidentes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📝 Incidentes Generales</button>
             
-            {/* NUEVA PESTAÑA PEDIDA */}
             <button onClick={() => setSeccionActiva('soportes')} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'soportes' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
               <span className="flex items-center gap-2">🛠️ Reportes de Soportes</span>
               <span className="bg-slate-800 text-[10px] px-1.5 py-0.5 rounded-full text-emerald-400 border border-emerald-800">Campo</span>
@@ -471,6 +473,10 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="font-semibold text-slate-600">EQUIPO AFECTADO</label>
+                      <button type="button" onClick={() => setModalCatalogos('equipo')} className="text-[10px] text-blue-600 hover:underline font-bold">+ Agregar Equipo</button>
+                    </div>
                     <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
                       {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
                     </select>
@@ -617,12 +623,12 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-xs">
             <h3 className="font-bold text-sm text-slate-800 uppercase">
-              {modalCatalogos === 'odpe' ? 'Agregar Nueva ODPE' : 'Agregar Nuevo Supervisor'}
+              {modalCatalogos === 'odpe' ? 'Agregar Nueva ODPE' : modalCatalogos === 'supervisor' ? 'Agregar Nuevo Supervisor' : 'Agregar Nuevo Tipo de Equipo'}
             </h3>
             <input
               type="text"
               autoFocus
-              placeholder={modalCatalogos === 'odpe' ? 'Nombre de ODPE...' : 'Nombre del Supervisor...'}
+              placeholder={modalCatalogos === 'odpe' ? 'Nombre de ODPE...' : modalCatalogos === 'supervisor' ? 'Nombre del Supervisor...' : 'Nombre de Equipo (Ej. LAPTOP)...'}
               value={inputNuevoCatalog}
               onChange={(e) => setInputNuevoCatalog(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 font-semibold"
