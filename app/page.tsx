@@ -484,16 +484,16 @@ export default function Home() {
           <div className={`${estilosTema.bgCard} border p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6`}>
             <div className="text-center space-y-2">
               <div className="inline-flex items-center gap-2 bg-amber-600/10 border border-amber-600/20 text-amber-700 font-black text-xl px-4 py-2 rounded-2xl mb-2">
-                <ShieldCheck className="w-6 h-6 text-amber-700" /> ODPE TRACKER
+                <ShieldCheck className="w-6 h-6 text-amber-700" /> Gestor ODPE
               </div>
-              <h1 className="text-2xl font-black tracking-tight">Acceso Administrativo</h1>
-              <p className={`text-xs ${estilosTema.subtext}`}>Ingresa tus credenciales institucionales</p>
+              <h1 className="text-2xl font-black tracking-tight">Team Supers</h1>
+              <p className={`text-xs ${estilosTema.subtext}`}>Ingresa tus credenciales </p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4 text-xs">
               <div>
                 <label className={`block font-bold mb-1 uppercase text-[10px] ${estilosTema.subtext}`}>Correo Electrónico</label>
-                <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="usuario@onpe.gob.pe" className={`w-full rounded-xl p-3.5 ${estilosTema.bgInput} focus:outline-none transition-all`} />
+                <input type="email" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="usuario@gmail.com" className={`w-full rounded-xl p-3.5 ${estilosTema.bgInput} focus:outline-none transition-all`} />
               </div>
               <div>
                 <label className={`block font-bold mb-1 uppercase text-[10px] ${estilosTema.subtext}`}>Contraseña</label>
