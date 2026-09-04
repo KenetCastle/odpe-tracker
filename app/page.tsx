@@ -21,6 +21,8 @@ interface Incidencia {
   tecnico_nombre: string;
   tecnico_dni: string;
   tecnico_celular: string;
+  foto_1?: string;
+  foto_2?: string;
   creado_por?: string;
   created_at: string;
   en_papelera: boolean;
@@ -47,7 +49,7 @@ export default function Home() {
   const [vistaPapelera, setVistaPapelera] = useState(false);
   const [modalVer, setModalVer] = useState<Incidencia | null>(null);
 
-  // Catálogos desde padron_odpes
+  // Catálogos
   const [listaPadron, setListaPadron] = useState<any[]>([]);
   const [busquedaOdpeInput, setBusquedaOdpeInput] = useState('');
   const [listaSupervisores, setListaSupervisores] = useState<string[]>([]);
@@ -58,12 +60,12 @@ export default function Home() {
   const [inputNuevoCatalog, setInputNuevoCatalog] = useState('');
 
   // Filtros
-  const [filtroEstado, setFiltroEstado] = useState('Todos');
-  const [filtroEquipo, setFiltroEquipo] = useState('Todos');
+  const [filtroEstado, setFiltroEstado] = useState('Todos los Estados');
+  const [filtroEquipo, setFiltroEquipo] = useState('Todos los Equipos');
   const [inputBusqueda, setInputBusqueda] = useState('');
   const [busquedaActiva, setBusquedaActiva] = useState('');
 
-  // Formulario
+  // Formulario Admin
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [odpeSeleccionada, setOdpeSeleccionada] = useState('');
   const [supervisor, setSupervisor] = useState('');
@@ -81,6 +83,11 @@ export default function Home() {
   const [estado, setEstado] = useState('Reportado');
   const [descripcion, setDescripcion] = useState('');
 
+  // Archivos Admin
+  const [archivoFoto1, setArchivoFoto1] = useState<File | null>(null);
+  const [archivoFoto2, setArchivoFoto2] = useState<File | null>(null);
+  const [enviandoAdmin, setEnviandoAdmin] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSesion(session);
@@ -96,7 +103,6 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // CARGAR PADRÓN OFICIAL DE ODPES DESDE SUPABASE
   const fetchPadronOdpes = async () => {
     const { data } = await supabase.from('padron_odpes').select('*').order('odpe_nombre', { ascending: true });
     if (data && data.length > 0) {
@@ -124,11 +130,8 @@ export default function Home() {
   const handleCambioOdpe = (nombreOdpe: string) => {
     setOdpeSeleccionada(nombreOdpe);
     const coincidencia = listaPadron.find(p => p.odpe_nombre === nombreOdpe);
-    if (coincidencia) {
-      autoRellenarDesdePadron(coincidencia);
-    } else {
-      setDatosTecnicoExiste(false);
-    }
+    if (coincidencia) autoRellenarDesdePadron(coincidencia);
+    else setDatosTecnicoExiste(false);
   };
 
   const cargarPerfil = async (userId: string, email: string) => {
@@ -179,6 +182,18 @@ export default function Home() {
     fetchPadronOdpes();
   }, []);
 
+  const subirImagen = async (file: File) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const filePath = `admin/${fileName}`;
+
+    const { error } = await supabase.storage.from('incidencias-fotos').upload(filePath, file);
+    if (error) throw error;
+
+    const { data } = supabase.storage.from('incidencias-fotos').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
   const agregarAlCatalogo = (tipo: 'supervisor' | 'equipo') => {
     if (!inputNuevoCatalog.trim()) return;
     const val = inputNuevoCatalog.trim();
@@ -200,33 +215,47 @@ export default function Home() {
     e.preventDefault();
     if (perfil?.rol === 'Visitante') return alert('Acceso de solo lectura.');
 
-    const equipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoAdmin.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
+    setEnviandoAdmin(true);
+    try {
+      let urlFoto1 = '';
+      let urlFoto2 = '';
 
-    const payload = {
-      odpe_nombre: odpeSeleccionada,
-      supervisor: supervisor,
-      tecnico_nombre: tecnicoNombre,
-      tecnico_dni: tecnicoDni,
-      tecnico_celular: tecnicoCelular.replace(/\s+/g, ''),
-      tipo_problema: tipoProblema,
-      equipo_afectado: equipoFinal,
-      marca,
-      modelo,
-      serie,
-      estado,
-      descripcion,
-      usuario_a_cargo: tecnicoNombre || supervisor || 'S/N',
-    };
+      if (archivoFoto1) urlFoto1 = await subirImagen(archivoFoto1);
+      if (archivoFoto2) urlFoto2 = await subirImagen(archivoFoto2);
 
-    if (editandoId) {
-      await supabase.from('incidencias').update(payload).eq('id', editandoId);
-      limpiarFormulario();
-      fetchIncidencias();
-    } else {
-      await supabase.from('incidencias').insert([{ ...payload, creado_por: perfil?.correo, en_papelera: false }]);
-      limpiarFormulario();
-      fetchIncidencias();
+      const equipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoAdmin.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
+
+      const payload = {
+        odpe_nombre: odpeSeleccionada,
+        supervisor: supervisor,
+        tecnico_nombre: tecnicoNombre,
+        tecnico_dni: tecnicoDni,
+        tecnico_celular: tecnicoCelular.replace(/\s+/g, ''),
+        tipo_problema: tipoProblema,
+        equipo_afectado: equipoFinal,
+        marca,
+        modelo,
+        serie,
+        estado,
+        descripcion,
+        foto_1: urlFoto1 || undefined,
+        foto_2: urlFoto2 || undefined,
+        usuario_a_cargo: tecnicoNombre || supervisor || 'S/N',
+      };
+
+      if (editandoId) {
+        await supabase.from('incidencias').update(payload).eq('id', editandoId);
+        limpiarFormulario();
+        fetchIncidencias();
+      } else {
+        await supabase.from('incidencias').insert([{ ...payload, creado_por: perfil?.correo, en_papelera: false }]);
+        limpiarFormulario();
+        fetchIncidencias();
+      }
+    } catch (err: any) {
+      alert('Error al subir imágenes: ' + err.message);
     }
+    setEnviandoAdmin(false);
   };
 
   const moverAPapelera = async (id: number, enviarAPapelera: boolean) => {
@@ -272,13 +301,15 @@ export default function Home() {
     setSerie('');
     setDescripcion('');
     setOtroEquipoAdmin('');
+    setArchivoFoto1(null);
+    setArchivoFoto2(null);
     setEstado('Reportado');
   };
 
   const exportarCSV = () => {
     if (incidencias.length === 0) return alert('No hay datos para exportar');
     const sep = ';';
-    const columnas = ['ID', 'FECHA', 'ODPE', 'EQUIPO', 'MARCA', 'MODELO', 'SERIE', 'ESTADO', 'TECNICO', 'CELULAR', 'CREADO_POR'];
+    const columnas = ['ID', 'FECHA', 'ODPE', 'EQUIPO', 'MARCA', 'MODELO', 'SERIE', 'ESTADO', 'TECNICO', 'CELULAR', 'FOTO1', 'FOTO2', 'CREADO_POR'];
     const filas = incidenciasFiltradas.map(i => [
       i.id,
       new Date(i.created_at).toLocaleDateString(),
@@ -290,6 +321,8 @@ export default function Home() {
       `"${i.estado}"`,
       `"${i.tecnico_nombre || ''}"`,
       `"${i.tecnico_celular || ''}"`,
+      `"${i.foto_1 || ''}"`,
+      `"${i.foto_2 || ''}"`,
       `"${i.creado_por || ''}"`
     ].join(sep));
 
@@ -310,8 +343,8 @@ export default function Home() {
 
   const incidenciasFiltradas = incidencias.filter(item => {
     const coincidePapelera = vistaPapelera ? item.en_papelera : !item.en_papelera;
-    const coincideEstado = filtroEstado === 'Todos' || item.estado === filtroEstado;
-    const coincideEquipo = filtroEquipo === 'Todos' || item.equipo_afectado === filtroEquipo;
+    const coincideEstado = filtroEstado === 'Todos los Estados' || item.estado === filtroEstado;
+    const coincideEquipo = filtroEquipo === 'Todos los Equipos' || item.equipo_afectado === filtroEquipo;
     const coincideBusqueda = (item.id.toString()).includes(busquedaActiva) ||
                              (item.equipo_afectado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
                              (item.odpe_nombre || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
@@ -347,19 +380,13 @@ export default function Home() {
             </form>
 
             <div className="relative border-t border-slate-700 pt-4 text-center">
-              <button 
-                onClick={() => setModoReportePublico(true)} 
-                className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2"
-              >
+              <button onClick={() => setModoReportePublico(true)} className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2">
                 <span>📋</span> Acceso Técnicos de Campo (DNI)
               </button>
             </div>
           </div>
         ) : (
-          <PortalTecnico 
-            onVolver={() => setModoReportePublico(false)} 
-            onIncidenciaCreada={fetchIncidencias} 
-          />
+          <PortalTecnico onVolver={() => setModoReportePublico(false)} onIncidenciaCreada={fetchIncidencias} />
         )}
       </main>
     );
@@ -420,7 +447,7 @@ export default function Home() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Sedes Padrón</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Sedes</span>
                 <p className="text-2xl font-black text-slate-800">{listaPadron.length}</p>
               </div>
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
@@ -458,7 +485,83 @@ export default function Home() {
           </div>
         )}
 
-        {(seccionActiva === 'incidentes' || seccionActiva === 'soportes') && (
+        {/* PESTAÑA SOPORTES (SOLO TABLA A PANTALLA COMPLETA, SIN FORMULARIO) */}
+        {seccionActiva === 'soportes' && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b pb-4">
+              <form onSubmit={(e) => { e.preventDefault(); setBusquedaActiva(inputBusqueda); }}>
+                <input type="text" placeholder="🔍 Buscar requerimiento..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className="w-full rounded-xl p-2 text-xs border border-slate-300 bg-slate-50" />
+              </form>
+              <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="w-full rounded-xl p-2 text-xs border border-slate-300 bg-slate-50">
+                <option value="Todos los Estados">Todos los Estados</option>
+                {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
+              </select>
+              <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="w-full rounded-xl p-2 text-xs border border-slate-300 bg-slate-50">
+                <option value="Todos los Equipos">Todos los Equipos</option>
+                {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
+              </select>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="font-bold border-b uppercase text-slate-500 bg-slate-50">
+                  <tr>
+                    <th className="py-3 px-3">ID / ODPE</th>
+                    <th className="py-3 px-3">Equipo</th>
+                    <th className="py-3 px-3">Técnico de Campo</th>
+                    <th className="py-3 px-3">Fotos</th>
+                    <th className="py-3 px-3">Estado</th>
+                    <th className="py-3 px-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {incidenciasFiltradas.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-3">
+                        <span className="font-mono text-blue-600 font-bold">#{item.id}</span>
+                        <p className="font-bold text-slate-800">{item.odpe_nombre}</p>
+                      </td>
+                      <td className="py-3 px-3">
+                        <p className="font-semibold text-slate-700">{item.equipo_afectado}</p>
+                        <p className="text-[10px] text-slate-400">Serie: {item.serie || 'S/S'}</p>
+                      </td>
+                      <td className="py-3 px-3">
+                        <p className="font-semibold text-slate-800">{item.tecnico_nombre}</p>
+                        <p className="text-[10px] text-slate-500">Cel: {item.tecnico_celular || 'S/N'}</p>
+                      </td>
+                      <td className="py-3 px-3">
+                        {item.foto_1 || item.foto_2 ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                            📷 {item.foto_1 && item.foto_2 ? '2 Fotos' : '1 Foto'}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">Sin foto</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                          item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                          item.estado === 'Almacén' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                          'bg-red-100 text-red-800 border border-red-300'
+                        }`}>
+                          {item.estado}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right space-x-1">
+                        <button onClick={() => setModalVer(item)} className="bg-slate-800 text-white px-2 py-1 rounded">🔍 Ver Ficha</button>
+                        <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-800 px-2 py-1 rounded">🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* PESTAÑA INCIDENTES GENERALES (MANTENE FORMULARIO ADMIN Y TABLA) */}
+        {seccionActiva === 'incidentes' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b pb-2">
@@ -470,9 +573,9 @@ export default function Home() {
                 <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500">🔒 El rol <strong>Visitante</strong> solo tiene permisos de lectura.</div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-                  {/* SELECTOR DE ODPE CON BUSCADOR DINÁMICO */}
+                  {/* SELECTOR DE ODPE LIMPIO (SOLO NOMBRE DE ODPE) */}
                   <div className="space-y-1">
-                    <label className="font-semibold text-slate-600">ODPE AFECTADA ({listaPadron.length} Sedes)</label>
+                    <label className="font-semibold text-slate-600">ODPE AFECTADA</label>
                     <input
                       type="text"
                       placeholder="🔍 Filtrar ODPE..."
@@ -483,17 +586,16 @@ export default function Home() {
                     <select
                       value={odpeSeleccionada}
                       onChange={(e) => handleCambioOdpe(e.target.value)}
-                      className="w-full rounded-lg p-2.5 border border-slate-300 bg-white font-bold text-slate-800"
+                      className="w-full rounded-lg p-2.5 border border-slate-300 bg-white font-bold text-slate-800 uppercase"
                     >
                       {odpesFiltradasPadron.map((p) => (
                         <option key={p.dni} value={p.odpe_nombre}>
-                          {p.odpe_nombre} ({p.tecnico_nombre || 'Sin Técnico'})
+                          {p.odpe_nombre}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  {/* AUTO-FILL RESPONSABLES */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="block font-bold text-[11px] uppercase text-slate-500">Responsables de Sede</span>
@@ -550,8 +652,17 @@ export default function Home() {
 
                   <textarea rows={2} placeholder="Observaciones..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full rounded-lg p-2 border border-slate-300 bg-white" />
 
-                  <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 font-bold py-2.5 rounded-xl text-white shadow-md">
-                    {editandoId ? 'Actualizar Registro' : 'Guardar Incidencia'}
+                  {/* ADJUNTAR FOTOS DESDE ADMIN */}
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase">📷 Adjuntar Fotos (Opcional - Máx 2)</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto1(e.target.files?.[0] || null)} className="text-[9px] w-full" />
+                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto2(e.target.files?.[0] || null)} className="text-[9px] w-full" />
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={enviandoAdmin} className="w-full bg-slate-900 hover:bg-slate-800 font-bold py-2.5 rounded-xl text-white shadow-md">
+                    {enviandoAdmin ? 'Subiendo datos e imágenes...' : editandoId ? 'Actualizar Registro' : 'Guardar Incidencia'}
                   </button>
                 </form>
               )}
@@ -678,28 +789,7 @@ export default function Home() {
         )}
       </main>
 
-      {modalCatalogos && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-xs">
-            <h3 className="font-bold text-sm text-slate-800 uppercase">
-              {modalCatalogos === 'supervisor' ? 'Agregar Nuevo Supervisor' : 'Agregar Nuevo Tipo de Equipo'}
-            </h3>
-            <input
-              type="text"
-              autoFocus
-              placeholder={modalCatalogos === 'supervisor' ? 'Nombre del Supervisor...' : 'Nombre de Equipo (Ej. LAPTOP)...'}
-              value={inputNuevoCatalog}
-              onChange={(e) => setInputNuevoCatalog(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 font-semibold"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => agregarAlCatalogo(modalCatalogos)} className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl">Agregar</button>
-              <button onClick={() => setModalCatalogos(null)} className="w-full bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* MODAL VER DETALLES DE FICHA CON IMÁGENES */}
       {modalVer && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 text-xs border border-slate-200">
@@ -711,17 +801,36 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2 border-b pb-2 text-[11px]">
                 <p><strong>ODPE:</strong> {modalVer.odpe_nombre}</p>
                 <p><strong>Estado:</strong> <span className="font-bold text-blue-600">{modalVer.estado}</span></p>
-                <p><strong>Creado por:</strong> <span className="font-semibold text-purple-600">{modalVer.creado_por || perfil?.correo || 'Sistema'}</span></p>
+                <p><strong>Creado por:</strong> <span className="font-semibold text-purple-600">{modalVer.creado_por || 'Sistema'}</span></p>
                 <p><strong>Fecha y Hora:</strong> {new Date(modalVer.created_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' })}</p>
               </div>
 
               <div className="space-y-1 pt-1">
                 <p><strong>Equipo:</strong> {modalVer.equipo_afectado} ({modalVer.marca || 'S/M'} - {modalVer.modelo || 'S/M'})</p>
                 <p><strong>N° Serie:</strong> <span className="font-mono">{modalVer.serie || 'N/A'}</span></p>
-                <p><strong>Supervisor ODPE:</strong> {modalVer.supervisor || 'N/A'}</p>
-                <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'} (DNI: {modalVer.tecnico_dni || 'S/N'} / Cel: {modalVer.tecnico_celular || 'S/N'})</p>
+                <p><strong>Supervisor:</strong> {modalVer.supervisor || 'N/A'}</p>
+                <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'} (DNI: {modalVer.tecnico_dni || 'S/N'})</p>
                 <p><strong>Observaciones:</strong> {modalVer.descripcion || 'Sin observaciones'}</p>
               </div>
+
+              {/* VISUALIZADOR DE IMÁGENES */}
+              {(modalVer.foto_1 || modalVer.foto_2) && (
+                <div className="pt-2 border-t space-y-1">
+                  <span className="font-bold text-slate-700 block text-[10px] uppercase">📷 Evidencia Fotográfica:</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {modalVer.foto_1 && (
+                      <a href={modalVer.foto_1} target="_blank" rel="noopener noreferrer" className="block border rounded-lg overflow-hidden hover:opacity-80">
+                        <img src={modalVer.foto_1} alt="Evidencia 1" className="w-full h-24 object-cover" />
+                      </a>
+                    )}
+                    {modalVer.foto_2 && (
+                      <a href={modalVer.foto_2} target="_blank" rel="noopener noreferrer" className="block border rounded-lg overflow-hidden hover:opacity-80">
+                        <img src={modalVer.foto_2} alt="Evidencia 2" className="w-full h-24 object-cover" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <button onClick={() => copiarResumen(modalVer)} className="w-full bg-blue-600 text-white font-bold py-2 rounded-xl">Copiar Ficha</button>

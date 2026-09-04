@@ -33,9 +33,13 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
   const [modelo, setModelo] = useState('');
   const [serie, setSerie] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  
+  // Archivos de Imagen
+  const [archivoFoto1, setArchivoFoto1] = useState<File | null>(null);
+  const [archivoFoto2, setArchivoFoto2] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // Historial personal del técnico
+  // Historial personal
   const [miHistorial, setMiHistorial] = useState<any[]>([]);
 
   const handleValidarDni = async (e: React.FormEvent) => {
@@ -70,45 +74,71 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
     if (data) setMiHistorial(data);
   };
 
+  const subirImagen = async (file: File) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const filePath = `campo/${fileName}`;
+
+    const { error } = await supabase.storage.from('incidencias-fotos').upload(filePath, file);
+    if (error) throw error;
+
+    const { data } = supabase.storage.from('incidencias-fotos').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
   const handleSubmitIncidencia = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tecnicoAutenticado) return;
 
-    const nombreEquipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoInput.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
-
     setEnviando(true);
-    const payload = {
-      odpe_nombre: tecnicoAutenticado.odpe_nombre,
-      supervisor: tecnicoAutenticado.supervisor_nombre,
-      tecnico_nombre: tecnicoAutenticado.tecnico_nombre,
-      tecnico_dni: tecnicoAutenticado.dni,
-      tecnico_celular: tecnicoAutenticado.tecnico_celular,
-      tipo_problema: tipoProblema,
-      equipo_afectado: nombreEquipoFinal,
-      marca,
-      modelo,
-      serie,
-      estado: 'Reportado',
-      descripcion,
-      usuario_a_cargo: tecnicoAutenticado.tecnico_nombre,
-      creado_por: `${tecnicoAutenticado.tecnico_nombre} (Técnico de Campo)`,
-      en_papelera: false
-    };
+    try {
+      let urlFoto1 = '';
+      let urlFoto2 = '';
 
-    const { error } = await supabase.from('incidencias').insert([payload]);
+      if (archivoFoto1) urlFoto1 = await subirImagen(archivoFoto1);
+      if (archivoFoto2) urlFoto2 = await subirImagen(archivoFoto2);
 
-    if (error) {
-      alert('Error al registrar incidencia: ' + error.message);
-    } else {
-      alert('✅ Incidencia registrada con éxito.');
-      setMarca('');
-      setModelo('');
-      setSerie('');
-      setDescripcion('');
-      setOtroEquipoInput('');
-      setEquipoSeleccionado('CPU');
-      cargarMiHistorial(tecnicoAutenticado.odpe_nombre, tecnicoAutenticado.tecnico_nombre);
-      onIncidenciaCreada();
+      const nombreEquipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoInput.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
+
+      const payload = {
+        odpe_nombre: tecnicoAutenticado.odpe_nombre,
+        supervisor: tecnicoAutenticado.supervisor_nombre,
+        tecnico_nombre: tecnicoAutenticado.tecnico_nombre,
+        tecnico_dni: tecnicoAutenticado.dni,
+        tecnico_celular: tecnicoAutenticado.tecnico_celular,
+        tipo_problema: tipoProblema,
+        equipo_afectado: nombreEquipoFinal,
+        marca,
+        modelo,
+        serie,
+        estado: 'Reportado',
+        descripcion,
+        foto_1: urlFoto1,
+        foto_2: urlFoto2,
+        usuario_a_cargo: tecnicoAutenticado.tecnico_nombre,
+        creado_por: `${tecnicoAutenticado.tecnico_nombre} (Técnico de Campo)`,
+        en_papelera: false
+      };
+
+      const { error } = await supabase.from('incidencias').insert([payload]);
+
+      if (error) {
+        alert('Error al registrar incidencia: ' + error.message);
+      } else {
+        alert('✅ Incidencia registrada con imágenes enviadas con éxito.');
+        setMarca('');
+        setModelo('');
+        setSerie('');
+        setDescripcion('');
+        setOtroEquipoInput('');
+        setArchivoFoto1(null);
+        setArchivoFoto2(null);
+        setEquipoSeleccionado('CPU');
+        cargarMiHistorial(tecnicoAutenticado.odpe_nombre, tecnicoAutenticado.tecnico_nombre);
+        onIncidenciaCreada();
+      }
+    } catch (err: any) {
+      alert('Error al subir archivos de imagen: ' + err.message);
     }
     setEnviando(false);
   };
@@ -116,7 +146,6 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
   return (
     <div className="max-w-xl w-full mx-auto space-y-6">
       {!tecnicoAutenticado ? (
-        /* VISTA LOGIN POR DNI */
         <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl shadow-2xl space-y-6 text-slate-100">
           <div className="text-center space-y-2">
             <div className="inline-block bg-blue-600 text-white font-black text-2xl px-4 py-2 rounded-xl mb-2">ODPE</div>
@@ -147,15 +176,11 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
             </button>
           </form>
 
-          <button
-            onClick={onVolver}
-            className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition-all"
-          >
+          <button onClick={onVolver} className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition-all">
             ← Volver al Login de Administrador
           </button>
         </div>
       ) : (
-        /* VISTA PANEL PRIVADO DEL TÉCNICO */
         <div className="space-y-6">
           <div className="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-xl text-slate-100 space-y-3">
             <div className="flex justify-between items-start">
@@ -166,10 +191,7 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
                 <h2 className="text-xl font-black text-white mt-1">{tecnicoAutenticado.odpe_nombre}</h2>
                 <p className="text-xs text-slate-300 font-bold">Bienvenido, {tecnicoAutenticado.tecnico_nombre}</p>
               </div>
-              <button
-                onClick={() => setTecnicoAutenticado(null)}
-                className="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold px-3 py-1.5 rounded-lg"
-              >
+              <button onClick={() => setTecnicoAutenticado(null)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold px-3 py-1.5 rounded-lg">
                 Cerrar Sesión
               </button>
             </div>
@@ -178,8 +200,6 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
               <p><strong>DNI:</strong> {tecnicoAutenticado.dni}</p>
               <p><strong>Celular:</strong> {tecnicoAutenticado.tecnico_celular}</p>
               <p><strong>Supervisor:</strong> {tecnicoAutenticado.supervisor_nombre}</p>
-              {tecnicoAutenticado.jefe_odpe && <p><strong>Jefe ODPE:</strong> {tecnicoAutenticado.jefe_odpe}</p>}
-              {tecnicoAutenticado.direccion && <p className="col-span-2"><strong>Dirección:</strong> {tecnicoAutenticado.direccion}</p>}
             </div>
           </div>
 
@@ -227,7 +247,7 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
                   <input
                     type="text"
                     required
-                    placeholder="Ej. ESCÁNER / ESTABILIZADOR / PROYECTOR..."
+                    placeholder="Ej. ESCÁNER / ESTABILIZADOR..."
                     value={otroEquipoInput}
                     onChange={(e) => setOtroEquipoInput(e.target.value)}
                     className="w-full bg-slate-900 border border-amber-500 rounded-lg p-2.5 text-white uppercase font-bold"
@@ -236,56 +256,39 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
               )}
 
               <div className="grid grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  placeholder="Marca"
-                  value={marca}
-                  onChange={(e) => setMarca(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white"
-                />
-                <input
-                  type="text"
-                  placeholder="Modelo"
-                  value={modelo}
-                  onChange={(e) => setModelo(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white"
-                />
-                <input
-                  type="text"
-                  placeholder="N° Serie"
-                  value={serie}
-                  onChange={(e) => setSerie(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white"
-                />
+                <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white" />
+                <input type="text" placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white" />
+                <input type="text" placeholder="N° Serie" value={serie} onChange={(e) => setSerie(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white" />
               </div>
 
               <div>
                 <label className="block text-slate-400 font-bold mb-1">Descripción Detallada</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Explica qué síntoma o falla presenta el equipo..."
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white"
-                />
+                <textarea rows={3} required placeholder="Explica qué síntoma o falla presenta el equipo..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white" />
               </div>
 
-              <button
-                type="submit"
-                disabled={enviando}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg"
-              >
-                {enviando ? 'Enviando...' : 'Enviar Reporte de Incidencia'}
+              {/* CARGA DE FOTOS (MÁXIMO 2) */}
+              <div className="p-3 bg-slate-900/80 border border-slate-700 rounded-xl space-y-2">
+                <label className="block text-blue-400 font-bold uppercase text-[10px]">📷 Adjuntar Fotos del Equipo (Máximo 2)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="block text-[10px] text-slate-400 mb-1">Foto 1 (Falla / Serie):</span>
+                    <input type="file" accept="image/*" onChange={(e) => setArchivoFoto1(e.target.files?.[0] || null)} className="text-[10px] text-slate-300 w-full bg-slate-800 p-1 rounded border border-slate-700" />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-slate-400 mb-1">Foto 2 (Opcional):</span>
+                    <input type="file" accept="image/*" onChange={(e) => setArchivoFoto2(e.target.files?.[0] || null)} className="text-[10px] text-slate-300 w-full bg-slate-800 p-1 rounded border border-slate-700" />
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" disabled={enviando} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg">
+                {enviando ? 'Subiendo imágenes y enviando...' : 'Enviar Reporte de Incidencia'}
               </button>
             </form>
           </div>
 
           <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-xl text-slate-100 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              📋 Mis Reportes Enviados ({miHistorial.length})
-            </h3>
-
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">📋 Mis Reportes Enviados ({miHistorial.length})</h3>
             {miHistorial.length === 0 ? (
               <p className="text-xs text-slate-500 py-4 text-center">Aún no has registrado ninguna incidencia.</p>
             ) : (
