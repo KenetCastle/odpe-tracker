@@ -33,32 +33,28 @@ interface PerfilUsuario {
 }
 
 export default function Home() {
-  // Autenticación State
   const [sesion, setSesion] = useState<any>(null);
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loadingAuth, setLoadingAuth] = useState(false);
 
-  // Modo Reporte Técnico (Sin Login)
   const [modoReportePublico, setModoReportePublico] = useState(false);
-
-  // Navegación Sidebar
   const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'odpes' | 'tecnicos' | 'reportes' | 'historial'>('incidentes');
 
-  // App State
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
   const [vistaPapelera, setVistaPapelera] = useState(false);
   const [modalVer, setModalVer] = useState<Incidencia | null>(null);
 
-  // Catálogos
-  const [listaOdpes, setListaOdpes] = useState<string[]>(['ODPE LIMA CENTRO', 'ODPE CALLAO', 'ODPE CUSCO', 'ODPE AREQUIPA']);
-  const [listaSupervisores, setListaSupervisores] = useState<string[]>(['Juan Pérez', 'Yong Perales']);
+  // Catálogos desde padron_odpes
+  const [listaPadron, setListaPadron] = useState<any[]>([]);
+  const [busquedaOdpeInput, setBusquedaOdpeInput] = useState('');
+  const [listaSupervisores, setListaSupervisores] = useState<string[]>([]);
   const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'IMPRESORA', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO', 'SWITCH/ROUTER']);
   const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto']);
 
-  const [modalCatalogos, setModalCatalogos] = useState<'odpe' | 'supervisor' | 'equipo' | null>(null);
+  const [modalCatalogos, setModalCatalogos] = useState<'supervisor' | 'equipo' | null>(null);
   const [inputNuevoCatalog, setInputNuevoCatalog] = useState('');
 
   // Filtros
@@ -69,21 +65,22 @@ export default function Home() {
 
   // Formulario
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [odpeSeleccionada, setOdpeSeleccionada] = useState('ODPE LIMA CENTRO');
+  const [odpeSeleccionada, setOdpeSeleccionada] = useState('');
   const [supervisor, setSupervisor] = useState('');
   const [tecnicoNombre, setTecnicoNombre] = useState('');
   const [tecnicoDni, setTecnicoDni] = useState('');
   const [tecnicoCelular, setTecnicoCelular] = useState('');
+  const [datosTecnicoExiste, setDatosTecnicoExiste] = useState(false);
 
   const [tipoProblema, setTipoProblema] = useState('Hardware');
   const [equipoSeleccionado, setEquipoSeleccionado] = useState('CPU');
+  const [otroEquipoAdmin, setOtroEquipoAdmin] = useState('');
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
   const [serie, setSerie] = useState('');
   const [estado, setEstado] = useState('Reportado');
   const [descripcion, setDescripcion] = useState('');
 
-  // Detectar Sesión
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSesion(session);
@@ -98,6 +95,41 @@ export default function Home() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // CARGAR PADRÓN OFICIAL DE ODPES DESDE SUPABASE
+  const fetchPadronOdpes = async () => {
+    const { data } = await supabase.from('padron_odpes').select('*').order('odpe_nombre', { ascending: true });
+    if (data && data.length > 0) {
+      setListaPadron(data);
+      if (!odpeSeleccionada) {
+        const primera = data[0];
+        setOdpeSeleccionada(primera.odpe_nombre);
+        autoRellenarDesdePadron(primera);
+      }
+      const supers = Array.from(new Set(data.map(d => d.supervisor_nombre).filter(Boolean)));
+      setListaSupervisores(supers as string[]);
+    }
+  };
+
+  const autoRellenarDesdePadron = (itemPadron: any) => {
+    if (itemPadron) {
+      setSupervisor(itemPadron.supervisor_nombre || '');
+      setTecnicoNombre(itemPadron.tecnico_nombre || '');
+      setTecnicoDni(itemPadron.dni || '');
+      setTecnicoCelular(itemPadron.tecnico_celular || '');
+      setDatosTecnicoExiste(true);
+    }
+  };
+
+  const handleCambioOdpe = (nombreOdpe: string) => {
+    setOdpeSeleccionada(nombreOdpe);
+    const coincidencia = listaPadron.find(p => p.odpe_nombre === nombreOdpe);
+    if (coincidencia) {
+      autoRellenarDesdePadron(coincidencia);
+    } else {
+      setDatosTecnicoExiste(false);
+    }
+  };
 
   const cargarPerfil = async (userId: string, email: string) => {
     try {
@@ -138,26 +170,19 @@ export default function Home() {
   const fetchIncidencias = async () => {
     setLoading(true);
     const { data } = await supabase.from('incidencias').select('*').order('created_at', { ascending: false });
-    if (data) {
-      setIncidencias(data);
-      const odpesBD = Array.from(new Set(data.map(i => i.odpe_nombre).filter(Boolean)));
-      setListaOdpes(prev => Array.from(new Set([...prev, ...odpesBD])));
-    }
+    if (data) setIncidencias(data);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchIncidencias();
+    fetchPadronOdpes();
   }, []);
 
-  const agregarAlCatalogo = (tipo: 'odpe' | 'supervisor' | 'equipo') => {
+  const agregarAlCatalogo = (tipo: 'supervisor' | 'equipo') => {
     if (!inputNuevoCatalog.trim()) return;
     const val = inputNuevoCatalog.trim();
 
-    if (tipo === 'odpe' && !listaOdpes.includes(val)) {
-      setListaOdpes([...listaOdpes, val.toUpperCase()]);
-      setOdpeSeleccionada(val.toUpperCase());
-    }
     if (tipo === 'supervisor' && !listaSupervisores.includes(val)) {
       setListaSupervisores([...listaSupervisores, val]);
       setSupervisor(val);
@@ -175,6 +200,8 @@ export default function Home() {
     e.preventDefault();
     if (perfil?.rol === 'Visitante') return alert('Acceso de solo lectura.');
 
+    const equipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoAdmin.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
+
     const payload = {
       odpe_nombre: odpeSeleccionada,
       supervisor: supervisor,
@@ -182,7 +209,7 @@ export default function Home() {
       tecnico_dni: tecnicoDni,
       tecnico_celular: tecnicoCelular.replace(/\s+/g, ''),
       tipo_problema: tipoProblema,
-      equipo_afectado: equipoSeleccionado,
+      equipo_afectado: equipoFinal,
       marca,
       modelo,
       serie,
@@ -244,6 +271,7 @@ export default function Home() {
     setModelo('');
     setSerie('');
     setDescripcion('');
+    setOtroEquipoAdmin('');
     setEstado('Reportado');
   };
 
@@ -276,6 +304,10 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
+  const odpesFiltradasPadron = listaPadron.filter(p =>
+    p.odpe_nombre.toLowerCase().includes(busquedaOdpeInput.toLowerCase())
+  );
+
   const incidenciasFiltradas = incidencias.filter(item => {
     const coincidePapelera = vistaPapelera ? item.en_papelera : !item.en_papelera;
     const coincideEstado = filtroEstado === 'Todos' || item.estado === filtroEstado;
@@ -291,13 +323,11 @@ export default function Home() {
     return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda;
   });
 
-  // Métricas
   const totalReportados = incidencias.filter(i => !i.en_papelera && i.estado === 'Reportado').length;
   const totalEnProceso = incidencias.filter(i => !i.en_papelera && i.estado === 'En Proceso').length;
   const totalAlmacen = incidencias.filter(i => !i.en_papelera && i.estado === 'Almacén').length;
   const totalResueltos = incidencias.filter(i => !i.en_papelera && i.estado === 'Resuelto').length;
 
-  // VISTA PÚBLICA / LOGIN
   if (!sesion) {
     return (
       <main className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans text-slate-100">
@@ -335,11 +365,8 @@ export default function Home() {
     );
   }
 
-  // VISTA PANEL ADMINISTRATIVO (LOGUEADO)
   return (
     <div className="min-h-screen flex bg-slate-100 font-sans text-slate-800">
-      
-      {/* SIDEBAR NAVEGACIÓN */}
       <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 shadow-xl border-r border-slate-800">
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-2 py-3 border-b border-slate-800">
@@ -359,7 +386,7 @@ export default function Home() {
               <span className="bg-slate-800 text-[10px] px-1.5 py-0.5 rounded-full text-emerald-400 border border-emerald-800">Campo</span>
             </button>
 
-            <button onClick={() => setSeccionActiva('odpes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'odpes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🌐 Directorio ODPEs</button>
+            <button onClick={() => setSeccionActiva('odpes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'odpes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🌐 Directorio ODPEs ({listaPadron.length})</button>
             <button onClick={() => setSeccionActiva('tecnicos')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'tecnicos' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>👤 Técnicos & Personal</button>
             <button onClick={() => setSeccionActiva('reportes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'reportes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📈 Reportes & Excel</button>
             <button onClick={() => setSeccionActiva('historial')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'historial' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📜 Historial</button>
@@ -376,14 +403,13 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* ÁREA PRINCIPAL */}
       <main className="flex-1 p-6 overflow-y-auto space-y-6">
         <header className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-xl font-bold text-slate-900 uppercase">
               {seccionActiva === 'soportes' ? '🛠️ Solicitudes Enviadas por Soportes de Campo' : seccionActiva}
             </h1>
-            <p className="text-xs text-slate-500">Monitoreo centralizado para 126 sedes regionales</p>
+            <p className="text-xs text-slate-500">Monitoreo centralizado para {listaPadron.length || 126} sedes regionales</p>
           </div>
           <button onClick={() => setVistaPapelera(!vistaPapelera)} className={`px-3 py-2 rounded-xl text-xs font-semibold ${vistaPapelera ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-700'}`}>
             {vistaPapelera ? '📋 Ver Activos' : '🗑️ Papelera'}
@@ -394,8 +420,8 @@ export default function Home() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Sedes</span>
-                <p className="text-2xl font-black text-slate-800">126</p>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Sedes Padrón</span>
+                <p className="text-2xl font-black text-slate-800">{listaPadron.length}</p>
               </div>
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Reportados</span>
@@ -444,42 +470,64 @@ export default function Home() {
                 <div className="p-4 bg-slate-50 border rounded-xl text-xs text-slate-500">🔒 El rol <strong>Visitante</strong> solo tiene permisos de lectura.</div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="font-semibold text-slate-600">ODPE AFECTADA</label>
-                      <button type="button" onClick={() => setModalCatalogos('odpe')} className="text-[10px] text-blue-600 hover:underline font-bold">+ Agregar ODPE</button>
-                    </div>
-                    <select value={odpeSeleccionada} onChange={(e) => setOdpeSeleccionada(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
-                      {listaOdpes.map((o, idx) => <option key={idx} value={o}>{o}</option>)}
+                  {/* SELECTOR DE ODPE CON BUSCADOR DINÁMICO */}
+                  <div className="space-y-1">
+                    <label className="font-semibold text-slate-600">ODPE AFECTADA ({listaPadron.length} Sedes)</label>
+                    <input
+                      type="text"
+                      placeholder="🔍 Filtrar ODPE..."
+                      value={busquedaOdpeInput}
+                      onChange={(e) => setBusquedaOdpeInput(e.target.value)}
+                      className="w-full rounded-lg p-1.5 text-xs border border-slate-300 bg-slate-50 mb-1"
+                    />
+                    <select
+                      value={odpeSeleccionada}
+                      onChange={(e) => handleCambioOdpe(e.target.value)}
+                      className="w-full rounded-lg p-2.5 border border-slate-300 bg-white font-bold text-slate-800"
+                    >
+                      {odpesFiltradasPadron.map((p) => (
+                        <option key={p.dni} value={p.odpe_nombre}>
+                          {p.odpe_nombre} ({p.tecnico_nombre || 'Sin Técnico'})
+                        </option>
+                      ))}
                     </select>
                   </div>
 
+                  {/* AUTO-FILL RESPONSABLES */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="block font-bold text-[11px] uppercase text-slate-500">Responsables</span>
-                      <button type="button" onClick={() => setModalCatalogos('supervisor')} className="text-[10px] text-blue-600 hover:underline font-bold">+ Supervisor</button>
+                      <span className="block font-bold text-[11px] uppercase text-slate-500">Responsables de Sede</span>
+                      {datosTecnicoExiste && <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">✓ Auto-rellenado</span>}
                     </div>
                     
-                    <select value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white">
-                      <option value="">Selecciona Supervisor</option>
-                      {listaSupervisores.map((s, idx) => <option key={idx} value={s}>{s}</option>)}
-                    </select>
-
-                    <input type="text" placeholder="Nombre Técnico" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white" />
+                    <input type="text" placeholder="Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white font-semibold" />
+                    <input type="text" placeholder="Nombre Técnico" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white font-semibold" />
                     <div className="grid grid-cols-2 gap-2">
-                      <input type="text" placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white" />
-                      <input type="text" placeholder="Celular" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white" />
+                      <input type="text" placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white font-mono" />
+                      <input type="text" placeholder="Celular" maxLength={9} value={tecnicoCelular} onChange={(e) => setTecnicoCelular(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white font-mono" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex justify-between items-center mb-1">
                       <label className="font-semibold text-slate-600">EQUIPO AFECTADO</label>
-                      <button type="button" onClick={() => setModalCatalogos('equipo')} className="text-[10px] text-blue-600 hover:underline font-bold">+ Agregar Equipo</button>
+                      <button type="button" onClick={() => setModalCatalogos('equipo')} className="text-[10px] text-blue-600 hover:underline font-bold">+ Agregar Tipo</button>
                     </div>
                     <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
                       {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
+                      <option value="OTRO">⚠️ OTRO EQUIPO...</option>
                     </select>
+
+                    {equipoSeleccionado === 'OTRO' && (
+                      <input
+                        type="text"
+                        required
+                        placeholder="Escribe el nombre del equipo..."
+                        value={otroEquipoAdmin}
+                        onChange={(e) => setOtroEquipoAdmin(e.target.value)}
+                        className="w-full rounded-lg p-2 border border-amber-400 bg-amber-50 text-slate-800 uppercase font-bold"
+                      />
+                    )}
 
                     <div className="grid grid-cols-3 gap-1.5">
                       <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="rounded p-1.5 text-[11px] border border-slate-300 bg-white" />
@@ -515,11 +563,11 @@ export default function Home() {
                   <input type="text" placeholder="🔍 Buscar por ID, ODPE..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className="w-full rounded-xl p-2 text-xs border border-slate-300 bg-slate-50" />
                 </form>
                 <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="w-full rounded-xl p-2 text-xs border border-slate-300 bg-slate-50">
-                  <option value="Todos">Todos los Estados</option>
+                  <option value="Todos los Estados">Todos los Estados</option>
                   {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
                 </select>
                 <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="w-full rounded-xl p-2 text-xs border border-slate-300 bg-slate-50">
-                  <option value="Todos">Todos los Equipos</option>
+                  <option value="Todos los Equipos">Todos los Equipos</option>
                   {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
                 </select>
               </div>
@@ -585,7 +633,19 @@ export default function Home() {
         )}
 
         {seccionActiva === 'odpes' && (
-          <DirectorioOdpes listaOdpes={listaOdpes} incidencias={incidencias} onUpdate={fetchIncidencias} />
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h2 className="font-bold text-sm text-slate-800 uppercase border-b pb-2">Directorio Oficial de ODPEs ({listaPadron.length} Sedes Cargadas)</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {listaPadron.map((p) => (
+                <div key={p.dni} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
+                  <span className="font-bold text-blue-600 block">{p.odpe_nombre}</span>
+                  <p><strong>Técnico:</strong> {p.tecnico_nombre || 'N/A'}</p>
+                  <p><strong>DNI / Celular:</strong> {p.dni} / {p.tecnico_celular || 'N/A'}</p>
+                  <p><strong>Supervisor:</strong> {p.supervisor_nombre || 'N/A'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {seccionActiva === 'tecnicos' && (
@@ -618,17 +678,16 @@ export default function Home() {
         )}
       </main>
 
-      {/* MODAL PARA AGREGAR ELEMENTOS A CATÁLOGOS */}
       {modalCatalogos && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-xs">
             <h3 className="font-bold text-sm text-slate-800 uppercase">
-              {modalCatalogos === 'odpe' ? 'Agregar Nueva ODPE' : modalCatalogos === 'supervisor' ? 'Agregar Nuevo Supervisor' : 'Agregar Nuevo Tipo de Equipo'}
+              {modalCatalogos === 'supervisor' ? 'Agregar Nuevo Supervisor' : 'Agregar Nuevo Tipo de Equipo'}
             </h3>
             <input
               type="text"
               autoFocus
-              placeholder={modalCatalogos === 'odpe' ? 'Nombre de ODPE...' : modalCatalogos === 'supervisor' ? 'Nombre del Supervisor...' : 'Nombre de Equipo (Ej. LAPTOP)...'}
+              placeholder={modalCatalogos === 'supervisor' ? 'Nombre del Supervisor...' : 'Nombre de Equipo (Ej. LAPTOP)...'}
               value={inputNuevoCatalog}
               onChange={(e) => setInputNuevoCatalog(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 font-semibold"
@@ -641,7 +700,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modal Ficha Ver */}
       {modalVer && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 text-xs border border-slate-200">

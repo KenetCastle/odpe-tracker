@@ -27,6 +27,7 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
 
   // Formulario de Equipo
   const [equipoSeleccionado, setEquipoSeleccionado] = useState('CPU');
+  const [otroEquipoInput, setOtroEquipoInput] = useState('');
   const [tipoProblema, setTipoProblema] = useState('Hardware');
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
@@ -73,6 +74,8 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
     e.preventDefault();
     if (!tecnicoAutenticado) return;
 
+    const nombreEquipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoInput.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
+
     setEnviando(true);
     const payload = {
       odpe_nombre: tecnicoAutenticado.odpe_nombre,
@@ -81,7 +84,7 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
       tecnico_dni: tecnicoAutenticado.dni,
       tecnico_celular: tecnicoAutenticado.tecnico_celular,
       tipo_problema: tipoProblema,
-      equipo_afectado: equipoSeleccionado,
+      equipo_afectado: nombreEquipoFinal,
       marca,
       modelo,
       serie,
@@ -102,6 +105,8 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
       setModelo('');
       setSerie('');
       setDescripcion('');
+      setOtroEquipoInput('');
+      setEquipoSeleccionado('CPU');
       cargarMiHistorial(tecnicoAutenticado.odpe_nombre, tecnicoAutenticado.tecnico_nombre);
       onIncidenciaCreada();
     }
@@ -152,7 +157,6 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
       ) : (
         /* VISTA PANEL PRIVADO DEL TÉCNICO */
         <div className="space-y-6">
-          {/* FICHA DE TÉCNICO */}
           <div className="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-xl text-slate-100 space-y-3">
             <div className="flex justify-between items-start">
               <div>
@@ -179,7 +183,6 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
             </div>
           </div>
 
-          {/* FORMULARIO DE NUEVA INCIDENCIA */}
           <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-xl text-slate-100 space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400 border-b border-slate-700 pb-2">
               ➕ Registrar Nueva Falla de Equipo
@@ -200,6 +203,7 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
                     <option value="GRUPO ELECTROGENO">GRUPO ELECTRÓGENO</option>
                     <option value="AIRE ACONDICIONADO">AIRE ACONDICIONADO</option>
                     <option value="SWITCH/ROUTER">SWITCH / ROUTER</option>
+                    <option value="OTRO">⚠️ OTRO EQUIPO...</option>
                   </select>
                 </div>
 
@@ -216,6 +220,20 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
                   </select>
                 </div>
               </div>
+
+              {equipoSeleccionado === 'OTRO' && (
+                <div>
+                  <label className="block text-amber-400 font-bold mb-1">Escribe el Nombre del Equipo:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej. ESCÁNER / ESTABILIZADOR / PROYECTOR..."
+                    value={otroEquipoInput}
+                    onChange={(e) => setOtroEquipoInput(e.target.value)}
+                    className="w-full bg-slate-900 border border-amber-500 rounded-lg p-2.5 text-white uppercase font-bold"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-2">
                 <input
@@ -263,7 +281,6 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
             </form>
           </div>
 
-          {/* HISTORIAL PERSONAL DEL TÉCNICO */}
           <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-xl text-slate-100 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
               📋 Mis Reportes Enviados ({miHistorial.length})
