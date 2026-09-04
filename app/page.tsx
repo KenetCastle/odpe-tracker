@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import PortalTecnico from '@/app/components/PortalTecnico';
 import DirectorioOdpes from '@/app/components/DirectorioOdpes';
 import TablaTecnicos from '@/app/components/TablaTecnicos';
-import PortalTecnico from '@/app/components/PortalTecnico';
 
 interface Incidencia {
   id: number;
@@ -44,7 +44,7 @@ export default function Home() {
   const [modoReportePublico, setModoReportePublico] = useState(false);
 
   // Navegación Sidebar
-  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'odpes' | 'tecnicos' | 'reportes' | 'historial'>('incidentes');
+  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'odpes' | 'tecnicos' | 'reportes' | 'historial'>('incidentes');
 
   // App State
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
@@ -53,9 +53,13 @@ export default function Home() {
   const [modalVer, setModalVer] = useState<Incidencia | null>(null);
 
   // Catálogos
-  const [listaOdpes, setListaOdpes] = useState<string[]>(['ODPE LIMA CENTRO', 'ODPE CUSCO', 'ODPE SANTA', 'ODPE AREQUIPA']);
-  const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO']);
+  const [listaOdpes, setListaOdpes] = useState<string[]>(['ODPE LIMA CENTRO', 'ODPE CALLAO', 'ODPE CUSCO', 'ODPE AREQUIPA']);
+  const [listaSupervisores, setListaSupervisores] = useState<string[]>(['Juan Pérez', 'Yong Perales']);
+  const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'IMPRESORA', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO', 'SWITCH/ROUTER']);
   const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto']);
+
+  const [modalCatalogos, setModalCatalogos] = useState<'odpe' | 'supervisor' | null>(null);
+  const [inputNuevoCatalog, setInputNuevoCatalog] = useState('');
 
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState('Todos');
@@ -70,7 +74,6 @@ export default function Home() {
   const [tecnicoNombre, setTecnicoNombre] = useState('');
   const [tecnicoDni, setTecnicoDni] = useState('');
   const [tecnicoCelular, setTecnicoCelular] = useState('');
-  const [datosTecnicoExiste, setDatosTecnicoExiste] = useState(false);
 
   const [tipoProblema, setTipoProblema] = useState('Hardware');
   const [equipoSeleccionado, setEquipoSeleccionado] = useState('CPU');
@@ -95,38 +98,6 @@ export default function Home() {
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // Auto-fill Inteligente al cambiar ODPE
-  const cargarDatosOdpe = async (nombreOdpe: string) => {
-    if (!nombreOdpe) return;
-    const { data } = await supabase
-      .from('incidencias')
-      .select('supervisor, tecnico_nombre, tecnico_dni, tecnico_celular')
-      .eq('odpe_nombre', nombreOdpe)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (data && (data.tecnico_nombre || data.supervisor)) {
-      setSupervisor(data.supervisor || '');
-      setTecnicoNombre(data.tecnico_nombre || '');
-      setTecnicoDni(data.tecnico_dni || '');
-      setTecnicoCelular(data.tecnico_celular || '');
-      setDatosTecnicoExiste(true);
-    } else {
-      setSupervisor('');
-      setTecnicoNombre('');
-      setTecnicoDni('');
-      setTecnicoCelular('');
-      setDatosTecnicoExiste(false);
-    }
-  };
-
-  useEffect(() => {
-    if (odpeSeleccionada && !editandoId) {
-      cargarDatosOdpe(odpeSeleccionada);
-    }
-  }, [odpeSeleccionada, editandoId]);
 
   const cargarPerfil = async (userId: string, email: string) => {
     try {
@@ -179,37 +150,21 @@ export default function Home() {
     fetchIncidencias();
   }, []);
 
-  const handleSubmitPublico = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload = {
-      odpe_nombre: odpeSeleccionada,
-      supervisor: supervisor,
-      tecnico_nombre: tecnicoNombre,
-      tecnico_dni: tecnicoDni,
-      tecnico_celular: tecnicoCelular.replace(/\s+/g, ''),
-      tipo_problema: tipoProblema,
-      equipo_afectado: equipoSeleccionado,
-      marca,
-      modelo,
-      serie,
-      estado: 'Reportado',
-      descripcion,
-      usuario_a_cargo: tecnicoNombre || supervisor || 'Técnico de Campo',
-      creado_por: tecnicoNombre ? `${tecnicoNombre} (Técnico)` : 'Técnico de Campo'
-    };
+  const agregarAlCatalogo = (tipo: 'odpe' | 'supervisor') => {
+    if (!inputNuevoCatalog.trim()) return;
+    const val = inputNuevoCatalog.trim();
 
-    const { error } = await supabase.from('incidencias').insert([{ ...payload, en_papelera: false }]);
-    if (error) {
-      alert('Error al enviar reporte: ' + error.message);
-    } else {
-      alert('✅ Incidencia registrada con éxito. El equipo de monitoreo la revisará.');
-      setMarca('');
-      setModelo('');
-      setSerie('');
-      setDescripcion('');
-      setModoReportePublico(false);
-      fetchIncidencias();
+    if (tipo === 'odpe' && !listaOdpes.includes(val)) {
+      setListaOdpes([...listaOdpes, val.toUpperCase()]);
+      setOdpeSeleccionada(val.toUpperCase());
     }
+    if (tipo === 'supervisor' && !listaSupervisores.includes(val)) {
+      setListaSupervisores([...listaSupervisores, val]);
+      setSupervisor(val);
+    }
+
+    setInputNuevoCatalog('');
+    setModalCatalogos(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -325,6 +280,11 @@ export default function Home() {
                              (item.equipo_afectado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
                              (item.odpe_nombre || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
                              (item.descripcion || '').toLowerCase().includes(busquedaActiva.toLowerCase());
+    
+    // Filtrar solicitudes enviadas por técnicos de campo si está activa la pestaña 'soportes'
+    const esReporteSoporte = item.creado_por?.includes('(Técnico de Campo)') || item.creado_por?.includes('Técnico');
+    if (seccionActiva === 'soportes') return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda && esReporteSoporte;
+
     return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda;
   });
 
@@ -363,7 +323,6 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          /* AQUÍ LLAMAMOS AL COMPONENTE MODULAR LIMPIO */
           <PortalTecnico 
             onVolver={() => setModoReportePublico(false)} 
             onIncidenciaCreada={fetchIncidencias} 
@@ -376,6 +335,7 @@ export default function Home() {
   // VISTA PANEL ADMINISTRATIVO (LOGUEADO)
   return (
     <div className="min-h-screen flex bg-slate-100 font-sans text-slate-800">
+      
       {/* SIDEBAR NAVEGACIÓN */}
       <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 shadow-xl border-r border-slate-800">
         <div className="space-y-6">
@@ -389,7 +349,14 @@ export default function Home() {
 
           <nav className="space-y-1 text-xs">
             <button onClick={() => setSeccionActiva('dashboard')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🏠 Dashboard</button>
-            <button onClick={() => setSeccionActiva('incidentes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'incidentes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📝 Incidentes</button>
+            <button onClick={() => setSeccionActiva('incidentes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'incidentes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📝 Incidentes Generales</button>
+            
+            {/* NUEVA PESTAÑA PEDIDA */}
+            <button onClick={() => setSeccionActiva('soportes')} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'soportes' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <span className="flex items-center gap-2">🛠️ Reportes de Soportes</span>
+              <span className="bg-slate-800 text-[10px] px-1.5 py-0.5 rounded-full text-emerald-400 border border-emerald-800">Campo</span>
+            </button>
+
             <button onClick={() => setSeccionActiva('odpes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'odpes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>🌐 Directorio ODPEs</button>
             <button onClick={() => setSeccionActiva('tecnicos')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'tecnicos' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>👤 Técnicos & Personal</button>
             <button onClick={() => setSeccionActiva('reportes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold transition-all ${seccionActiva === 'reportes' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>📈 Reportes & Excel</button>
@@ -411,8 +378,10 @@ export default function Home() {
       <main className="flex-1 p-6 overflow-y-auto space-y-6">
         <header className="flex justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 uppercase">{seccionActiva}</h1>
-            <p className="text-xs text-slate-500">Monitoreo centralizado para 125 sedes regionales</p>
+            <h1 className="text-xl font-bold text-slate-900 uppercase">
+              {seccionActiva === 'soportes' ? '🛠️ Solicitudes Enviadas por Soportes de Campo' : seccionActiva}
+            </h1>
+            <p className="text-xs text-slate-500">Monitoreo centralizado para 126 sedes regionales</p>
           </div>
           <button onClick={() => setVistaPapelera(!vistaPapelera)} className={`px-3 py-2 rounded-xl text-xs font-semibold ${vistaPapelera ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-700'}`}>
             {vistaPapelera ? '📋 Ver Activos' : '🗑️ Papelera'}
@@ -424,7 +393,7 @@ export default function Home() {
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Total Sedes</span>
-                <p className="text-2xl font-black text-slate-800">125</p>
+                <p className="text-2xl font-black text-slate-800">126</p>
               </div>
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Reportados</span>
@@ -461,7 +430,7 @@ export default function Home() {
           </div>
         )}
 
-        {seccionActiva === 'incidentes' && (
+        {(seccionActiva === 'incidentes' || seccionActiva === 'soportes') && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b pb-2">
@@ -474,7 +443,10 @@ export default function Home() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1 text-slate-600">ODPE AFECTADA</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="font-semibold text-slate-600">ODPE AFECTADA</label>
+                      <button type="button" onClick={() => setModalCatalogos('odpe')} className="text-[10px] text-blue-600 hover:underline font-bold">+ Agregar ODPE</button>
+                    </div>
                     <select value={odpeSeleccionada} onChange={(e) => setOdpeSeleccionada(e.target.value)} className="w-full rounded-lg p-2.5 border border-slate-300 bg-white">
                       {listaOdpes.map((o, idx) => <option key={idx} value={o}>{o}</option>)}
                     </select>
@@ -483,10 +455,14 @@ export default function Home() {
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="block font-bold text-[11px] uppercase text-slate-500">Responsables</span>
-                      {datosTecnicoExiste && <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">✓ Auto-cargado</span>}
+                      <button type="button" onClick={() => setModalCatalogos('supervisor')} className="text-[10px] text-blue-600 hover:underline font-bold">+ Supervisor</button>
                     </div>
                     
-                    <input type="text" placeholder="Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white" />
+                    <select value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white">
+                      <option value="">Selecciona Supervisor</option>
+                      {listaSupervisores.map((s, idx) => <option key={idx} value={s}>{s}</option>)}
+                    </select>
+
                     <input type="text" placeholder="Nombre Técnico" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className="w-full rounded-md p-2 border border-slate-300 bg-white" />
                     <div className="grid grid-cols-2 gap-2">
                       <input type="text" placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className="rounded-md p-2 border border-slate-300 bg-white" />
@@ -561,6 +537,7 @@ export default function Home() {
                           <td className="py-3 px-3">
                             <span className="font-mono text-blue-600 font-bold">#{item.id}</span>
                             <p className="font-bold text-slate-800">{item.odpe_nombre}</p>
+                            <p className="text-[10px] text-slate-400">Por: {item.creado_por || 'Sistema'}</p>
                           </td>
                           <td className="py-3 px-3">
                             <p className="font-semibold text-slate-700">{item.equipo_afectado}</p>
@@ -634,6 +611,29 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* MODAL PARA AGREGAR ELEMENTOS A CATÁLOGOS */}
+      {modalCatalogos && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 text-xs">
+            <h3 className="font-bold text-sm text-slate-800 uppercase">
+              {modalCatalogos === 'odpe' ? 'Agregar Nueva ODPE' : 'Agregar Nuevo Supervisor'}
+            </h3>
+            <input
+              type="text"
+              autoFocus
+              placeholder={modalCatalogos === 'odpe' ? 'Nombre de ODPE...' : 'Nombre del Supervisor...'}
+              value={inputNuevoCatalog}
+              onChange={(e) => setInputNuevoCatalog(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 font-semibold"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => agregarAlCatalogo(modalCatalogos)} className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl">Agregar</button>
+              <button onClick={() => setModalCatalogos(null)} className="w-full bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Ficha Ver */}
       {modalVer && (
