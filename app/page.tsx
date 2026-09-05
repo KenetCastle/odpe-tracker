@@ -23,7 +23,9 @@ import {
   Sun,
   Moon,
   Coffee,
-  UserCheck
+  UserCheck,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface Incidencia {
@@ -74,6 +76,12 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [vistaPapelera, setVistaPapelera] = useState(false);
   const [modalVer, setModalVer] = useState<Incidencia | null>(null);
+
+  // PAGINACIÓN (20 por página)
+  const [paginaActualIncidentes, setPaginaActualIncidentes] = useState(1);
+  const [paginaActualSoportes, setPaginaActualSoportes] = useState(1);
+  const [paginaActualOdpes, setPaginaActualOdpes] = useState(1);
+  const elementosPorPagina = 20;
 
   // Modal Edición Rápida Soportes / Delegación
   const [modalEditarSoporte, setModalEditarSoporte] = useState<Incidencia | null>(null);
@@ -230,7 +238,6 @@ export default function Home() {
     setLoading(false);
   };
 
-  // EFECTO DE SINCRONIZACIÓN EN TIEMPO REAL (WEB SOCKETS)
   useEffect(() => {
     fetchIncidencias();
     fetchPadronOdpes();
@@ -471,6 +478,17 @@ export default function Home() {
 
     return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda;
   });
+
+  // PAGINACIÓN CÁLCULOS
+  const totalPaginasIncidentes = Math.ceil(incidenciasFiltradas.length / elementosPorPagina) || 1;
+  const indexUltimoIncidente = paginaActualIncidentes * elementosPorPagina;
+  const indexPrimerIncidente = indexUltimoIncidente - elementosPorPagina;
+  const incidenciasPaginadas = incidenciasFiltradas.slice(indexPrimerIncidente, indexUltimoIncidente);
+
+  const totalPaginasOdpes = Math.ceil(directorioOdpesFiltrado.length / elementosPorPagina) || 1;
+  const indexUltimaOdpe = paginaActualOdpes * elementosPorPagina;
+  const indexPrimeraOdpe = indexUltimaOdpe - elementosPorPagina;
+  const odpesPaginadas = directorioOdpesFiltrado.slice(indexPrimeraOdpe, indexUltimaOdpe);
 
   const totalReportados = incidencias.filter(i => !i.en_papelera && i.estado === 'Reportado').length;
   const totalEnProceso = incidencias.filter(i => !i.en_papelera && i.estado === 'En Proceso').length;
@@ -770,11 +788,6 @@ export default function Home() {
                           </td>
                         </tr>
                       ))}
-                      {incidencias.filter(i => !i.en_papelera && i.supervisor_asignado === supervisorDetalleSeleccionado).length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="py-12 text-center text-xs opacity-60">Este supervisor no tiene incidencias asignadas actualmente.</td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -796,15 +809,16 @@ export default function Home() {
                   onChange={(e) => {
                     setInputBusqueda(e.target.value);
                     setBusquedaActiva(e.target.value);
+                    setPaginaActualSoportes(1);
                   }} 
                   className={`w-full rounded-xl p-3 pl-10 text-xs focus:outline-none ${estilosTema.bgInput}`} 
                 />
               </div>
-              <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+              <select value={filtroEstado} onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
                 <option value="Todos los Estados">Todos los Estados</option>
                 {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
               </select>
-              <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+              <select value={filtroEquipo} onChange={(e) => { setFiltroEquipo(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
                 <option value="Todos los Equipos">Todos los Equipos</option>
                 {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
               </select>
@@ -823,7 +837,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-300/40">
-                  {incidenciasFiltradas.map((item) => (
+                  {incidenciasFiltradas.slice((paginaActualSoportes - 1) * elementosPorPagina, paginaActualSoportes * elementosPorPagina).map((item) => (
                     <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
                       <td className="py-4 px-4">
                         <span className="font-mono text-amber-700 font-bold text-sm">#{item.id}</span>
@@ -860,6 +874,44 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
+
+            {/* CONTROLES DE PAGINACIÓN - SOPORTES */}
+            {Math.ceil(incidenciasFiltradas.length / elementosPorPagina) > 1 && (
+              <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
+                <span className={estilosTema.subtext}>
+                  Mostrando página {paginaActualSoportes} de {Math.ceil(incidenciasFiltradas.length / elementosPorPagina)} ({incidenciasFiltradas.length} registros en total)
+                </span>
+                <div className="flex gap-1.5 items-center">
+                  <button
+                    onClick={() => setPaginaActualSoportes(p => Math.max(p - 1, 1))}
+                    disabled={paginaActualSoportes === 1}
+                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Anterior
+                  </button>
+
+                  <div className="flex gap-1 px-2">
+                    {Array.from({ length: Math.ceil(incidenciasFiltradas.length / elementosPorPagina) }, (_, i) => i + 1).map(num => (
+                      <button
+                        key={num}
+                        onClick={() => setPaginaActualSoportes(num)}
+                        className={`w-8 h-8 rounded-xl font-bold text-xs ${paginaActualSoportes === num ? estilosTema.accentPrimary : 'border border-stone-300 bg-stone-100'}`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setPaginaActualSoportes(p => Math.min(p + 1, Math.ceil(incidenciasFiltradas.length / elementosPorPagina)))}
+                    disabled={paginaActualSoportes === Math.ceil(incidenciasFiltradas.length / elementosPorPagina)}
+                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                  >
+                    Siguiente <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -993,88 +1045,129 @@ export default function Home() {
               )}
             </div>
 
-            <div className={`lg:col-span-2 ${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-5`}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-stone-300/40 pb-4">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3.5 top-3.5 opacity-50" />
-                  <input 
-                    type="text" 
-                    placeholder="Buscar en vivo..." 
-                    value={inputBusqueda} 
-                    onChange={(e) => {
-                      setInputBusqueda(e.target.value);
-                      setBusquedaActiva(e.target.value);
-                    }} 
-                    className={`w-full rounded-xl p-3 pl-10 text-xs ${estilosTema.bgInput}`} 
-                  />
+            <div className={`lg:col-span-2 ${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-5 flex flex-col justify-between`}>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-stone-300/40 pb-4">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3.5 top-3.5 opacity-50" />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar en vivo..." 
+                      value={inputBusqueda} 
+                      onChange={(e) => {
+                        setInputBusqueda(e.target.value);
+                        setBusquedaActiva(e.target.value);
+                        setPaginaActualIncidentes(1);
+                      }} 
+                      className={`w-full rounded-xl p-3 pl-10 text-xs ${estilosTema.bgInput}`} 
+                    />
+                  </div>
+                  <select value={filtroEstado} onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualIncidentes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+                    <option value="Todos los Estados">Todos los Estados</option>
+                    {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
+                  </select>
+                  <select value={filtroEquipo} onChange={(e) => { setFiltroEquipo(e.target.value); setPaginaActualIncidentes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+                    <option value="Todos los Equipos">Todos los Equipos</option>
+                    {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
+                  </select>
                 </div>
-                <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
-                  <option value="Todos los Estados">Todos los Estados</option>
-                  {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
-                </select>
-                <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
-                  <option value="Todos los Equipos">Todos los Equipos</option>
-                  {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
-                </select>
+
+                {loading ? (
+                  <p className={`text-xs py-12 text-center ${estilosTema.subtext}`}>Cargando...</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
+                        <tr>
+                          <th className="py-4 px-4">ID / ODPE</th>
+                          <th className="py-4 px-4">Equipo</th>
+                          <th className="py-4 px-4">Delegado A</th>
+                          <th className="py-4 px-4">Estado</th>
+                          <th className="py-4 px-4 text-right">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-300/40">
+                        {incidenciasPaginadas.map((item) => (
+                          <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
+                            <td className="py-4 px-4">
+                              <span className="font-mono text-amber-700 font-bold text-sm">#{item.id}</span>
+                              <p className="font-bold mt-0.5">{item.odpe_nombre}</p>
+                              <p className={`text-[11px] ${estilosTema.subtext}`}>Por: {item.creado_por || 'Sistema'}</p>
+                            </td>
+                            <td className="py-4 px-4">
+                              <p className="font-semibold">{item.equipo_afectado}</p>
+                              <p className={`text-[11px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                                item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                                item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                item.estado === 'Almacén' ? 'bg-purple-100 text-purple-900 border border-purple-300' :
+                                'bg-red-100 text-red-900 border border-red-300'
+                              }`}>
+                                {item.estado}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right space-x-2">
+                              <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-3 py-2 rounded-xl font-bold">🔍</button>
+
+                              {perfil?.rol !== 'Visitante' && !vistaPapelera && (
+                                <>
+                                  <button onClick={() => cargarParaEditar(item)} className="bg-amber-100 text-amber-900 border border-amber-300 px-3 py-2 rounded-xl font-bold">✏️</button>
+                                  <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 border border-amber-300 px-3 py-2 rounded-xl font-bold">🗑️</button>
+                                </>
+                              )}
+
+                              {perfil?.rol === 'Admin' && vistaPapelera && (
+                                <button onClick={() => eliminarDefinitivo(item.id)} className="bg-red-600 text-white px-3 py-2 rounded-xl font-bold">❌</button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
-              {loading ? (
-                <p className={`text-xs py-12 text-center ${estilosTema.subtext}`}>Cargando...</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
-                      <tr>
-                        <th className="py-4 px-4">ID / ODPE</th>
-                        <th className="py-4 px-4">Equipo</th>
-                        <th className="py-4 px-4">Delegado A</th>
-                        <th className="py-4 px-4">Estado</th>
-                        <th className="py-4 px-4 text-right">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-300/40">
-                      {incidenciasFiltradas.map((item) => (
-                        <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
-                          <td className="py-4 px-4">
-                            <span className="font-mono text-amber-700 font-bold text-sm">#{item.id}</span>
-                            <p className="font-bold mt-0.5">{item.odpe_nombre}</p>
-                            <p className={`text-[11px] ${estilosTema.subtext}`}>Por: {item.creado_por || 'Sistema'}</p>
-                          </td>
-                          <td className="py-4 px-4">
-                            <p className="font-semibold">{item.equipo_afectado}</p>
-                            <p className={`text-[11px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                              item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
-                              item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                              item.estado === 'Almacén' ? 'bg-purple-100 text-purple-900 border border-purple-300' :
-                              'bg-red-100 text-red-900 border border-red-300'
-                            }`}>
-                              {item.estado}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4 text-right space-x-2">
-                            <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-3 py-2 rounded-xl font-bold">🔍</button>
+              {/* CONTROLES DE PAGINACIÓN - INCIDENTES GENERALES */}
+              {totalPaginasIncidentes > 1 && (
+                <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
+                  <span className={estilosTema.subtext}>
+                    Mostrando página {paginaActualIncidentes} de {totalPaginasIncidentes} ({incidenciasFiltradas.length} registros)
+                  </span>
+                  <div className="flex gap-1.5 items-center">
+                    <button
+                      onClick={() => setPaginaActualIncidentes(p => Math.max(p - 1, 1))}
+                      disabled={paginaActualIncidentes === 1}
+                      className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                    >
+                      <ChevronLeft className="w-4 h-4" /> Anterior
+                    </button>
 
-                            {perfil?.rol !== 'Visitante' && !vistaPapelera && (
-                              <>
-                                <button onClick={() => cargarParaEditar(item)} className="bg-amber-100 text-amber-900 border border-amber-300 px-3 py-2 rounded-xl font-bold">✏️</button>
-                                <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 border border-amber-300 px-3 py-2 rounded-xl font-bold">🗑️</button>
-                              </>
-                            )}
-
-                            {perfil?.rol === 'Admin' && vistaPapelera && (
-                              <button onClick={() => eliminarDefinitivo(item.id)} className="bg-red-600 text-white px-3 py-2 rounded-xl font-bold">❌</button>
-                            )}
-                          </td>
-                        </tr>
+                    <div className="flex gap-1 px-2">
+                      {Array.from({ length: totalPaginasIncidentes }, (_, i) => i + 1).map(num => (
+                        <button
+                          key={num}
+                          onClick={() => setPaginaActualIncidentes(num)}
+                          className={`w-8 h-8 rounded-xl font-bold text-xs ${paginaActualIncidentes === num ? estilosTema.accentPrimary : 'border border-stone-300 bg-stone-100'}`}
+                        >
+                          {num}
+                        </button>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+
+                    <button
+                      onClick={() => setPaginaActualIncidentes(p => Math.min(p + 1, totalPaginasIncidentes))}
+                      disabled={paginaActualIncidentes === totalPaginasIncidentes}
+                      className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                    >
+                      Siguiente <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1083,33 +1176,76 @@ export default function Home() {
 
         {/* PESTAÑA DIRECTORIO ODPES */}
         {seccionActiva === 'odpes' && (
-          <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-5`}>
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-b border-stone-300/40 pb-4">
-              <h2 className="font-bold text-sm uppercase flex items-center gap-2">
-                <Globe className="w-4 h-4 text-amber-700" /> Directorio Oficial ({directorioOdpesFiltrado.length} de {listaPadron.length} Sedes)
-              </h2>
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3.5 top-3.5 opacity-50" />
-                <input
-                  type="text"
-                  placeholder="Buscar ODPE, Técnico, DNI..."
-                  value={busquedaDirectorioInput}
-                  onChange={(e) => setBusquedaDirectorioInput(e.target.value)}
-                  className={`w-full rounded-xl p-3 pl-10 text-xs font-semibold ${estilosTema.bgInput}`}
-                />
+          <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-5 flex flex-col justify-between`}>
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-b border-stone-300/40 pb-4">
+                <h2 className="font-bold text-sm uppercase flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-amber-700" /> Directorio Oficial ({directorioOdpesFiltrado.length} de {listaPadron.length} Sedes)
+                </h2>
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 absolute left-3.5 top-3.5 opacity-50" />
+                  <input
+                    type="text"
+                    placeholder="Buscar ODPE, Técnico, DNI..."
+                    value={busquedaDirectorioInput}
+                    onChange={(e) => {
+                      setBusquedaDirectorioInput(e.target.value);
+                      setPaginaActualOdpes(1);
+                    }}
+                    className={`w-full rounded-xl p-3 pl-10 text-xs font-semibold ${estilosTema.bgInput}`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {odpesPaginadas.map((p) => (
+                  <div key={p.dni} className={`p-5 rounded-2xl space-y-2 text-xs border transition-all ${estilosTema.bgCard}`}>
+                    <span className="font-black text-amber-800 block text-sm tracking-wide">{p.odpe_nombre}</span>
+                    <p><strong>Técnico:</strong> {p.tecnico_nombre || 'Sin asignar'}</p>
+                    <p className="font-mono"><strong>DNI:</strong> {p.dni} | <strong>Celular:</strong> {p.tecnico_celular || 'S/N'}</p>
+                    <p><strong>Supervisor:</strong> {p.supervisor_nombre || 'S/N'}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {directorioOdpesFiltrado.map((p) => (
-                <div key={p.dni} className={`p-5 rounded-2xl space-y-2 text-xs border transition-all ${estilosTema.bgCard}`}>
-                  <span className="font-black text-amber-800 block text-sm tracking-wide">{p.odpe_nombre}</span>
-                  <p><strong>Técnico:</strong> {p.tecnico_nombre || 'Sin asignar'}</p>
-                  <p className="font-mono"><strong>DNI:</strong> {p.dni} | <strong>Celular:</strong> {p.tecnico_celular || 'S/N'}</p>
-                  <p><strong>Supervisor:</strong> {p.supervisor_nombre || 'S/N'}</p>
+            {/* CONTROLES DE PAGINACIÓN - DIRECTORIO ODPES */}
+            {totalPaginasOdpes > 1 && (
+              <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
+                <span className={estilosTema.subtext}>
+                  Mostrando página {paginaActualOdpes} de {totalPaginasOdpes} ({directorioOdpesFiltrado.length} sedes)
+                </span>
+                <div className="flex gap-1.5 items-center">
+                  <button
+                    onClick={() => setPaginaActualOdpes(p => Math.max(p - 1, 1))}
+                    disabled={paginaActualOdpes === 1}
+                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Anterior
+                  </button>
+
+                  <div className="flex gap-1 px-2">
+                    {Array.from({ length: totalPaginasOdpes }, (_, i) => i + 1).map(num => (
+                      <button
+                        key={num}
+                        onClick={() => setPaginaActualOdpes(num)}
+                        className={`w-8 h-8 rounded-xl font-bold text-xs ${paginaActualOdpes === num ? estilosTema.accentPrimary : 'border border-stone-300 bg-stone-100'}`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setPaginaActualOdpes(p => Math.min(p + 1, totalPaginasOdpes))}
+                    disabled={paginaActualOdpes === totalPaginasOdpes}
+                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                  >
+                    Siguiente <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1204,7 +1340,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL DETALLES FICHA (AMPLIADO Y MÁS CÓMODO) */}
+      {/* MODAL DETALLES FICHA */}
       {modalVer && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className={`${estilosTema.bgCard} rounded-3xl max-w-2xl w-full p-8 space-y-5 text-xs border shadow-2xl`}>
@@ -1225,7 +1361,7 @@ export default function Home() {
                 <p><strong>Equipo Afectado:</strong> <span className="font-semibold">{modalVer.equipo_afectado}</span> ({modalVer.marca || 'S/M'} - {modalVer.modelo || 'S/M'})</p>
                 <p><strong>N° Serie:</strong> <span className="font-mono">{modalVer.serie || 'N/A'}</span></p>
                 <p><strong>Supervisor de Sede:</strong> {modalVer.supervisor || 'N/A'}</p>
-                <p><strong>Delegado a:</strong> <span className="font-bold text-amber-700">{modalVer.supervisor_asignado || 'Sin delegar'}</span></p>
+                <p><strong>Delegado a:</strong> <span className="font-bold text-amber-700">{modalVer.supervisor_asignado || 'Sin delegar'}</span>5</p>
                 <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'}</p>
                 <p><strong>DNI / Celular Técnico:</strong> <span className="font-mono">{modalVer.tecnico_dni || 'S/N'} / {modalVer.tecnico_celular || 'S/N'}</span></p>
                 <p><strong>Observaciones / Historial:</strong></p>
