@@ -27,7 +27,7 @@ interface SeccionPagosProps {
   perfil: any;
 }
 
-export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: SeccionPagosProps) {
+export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps) {
   const [pagos, setPagos] = useState<PagoTecnico[]>([]);
   const [listaPadron, setListaPadron] = useState<any[]>([]);
   const [paginaActualPagos, setPaginaActualPagos] = useState(1);
@@ -52,64 +52,20 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
   const [nuevoEstadoPago, setNuevoEstadoPago] = useState('Pagado');
   const [obsPagoInput, setObsPagoInput] = useState('');
 
-  // Perfil autogestionado para evitar que el componente padre falle
-  const [rolReal, setRolReal] = useState<string>('');
-  const [correoReal, setCorreoReal] = useState<string>('');
-
   const listaMetodosPago = ['Yape', 'Plin', 'Depósito BCP', 'Depósito BBVA', 'Transferencia Interbancaria', 'Efectivo'];
 
-  // Cargar rol y correo directamente desde la sesión de Supabase al montar
-  useEffect(() => {
-    const verificarRolDirecto = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && user.email) {
-          setCorreoReal(user.email);
-          
-          // Consultamos directamente la tabla perfiles
-          const { data: perfilData } = await supabase
-            .from('perfiles')
-            .select('rol')
-            .eq('id', user.id)
-            .maybeSingle();
+  // --- CONFIGURACIÓN DE PERMISOS SEGÚN BD Y REGLA INTERNA ---
+  const rolUsuario = (perfil?.rol || '').toLowerCase();
+  const correoUsuario = (perfil?.correo || '').toLowerCase();
+  
+  // Junior identificado por correo para conservar sus funciones internas de gestión
+  const esJuniorInterno = correoUsuario.includes('junior.chry26');
+  
+  // Roles de Administrador puros provenientes de Supabase
+  const esAdminDB = rolUsuario.includes('admin') || rolUsuario.includes('administrador');
 
-          if (perfilData && perfilData.rol) {
-            setRolReal(perfilData.rol.toLowerCase());
-          } else {
-            // Si falló por ID, probamos por correo
-            const { data: perfilDataEmail } = await supabase
-              .from('perfiles')
-              .select('rol')
-              .eq('correo', user.email)
-              .maybeSingle();
-            
-            if (perfilDataEmail && perfilDataEmail.rol) {
-              setRolReal(perfilDataEmail.rol.toLowerCase());
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Error obteniendo rol directo:", e);
-      }
-    };
-
-    verificarRolDirecto();
-  }, []);
-
-  // Validaciones robustas combinando prop padre y autogestión directa
-  const rolFinal = (rolReal || perfilPadre?.rol || '').toLowerCase();
-  const correoFinal = (correoReal || perfilPadre?.correo || '').toLowerCase();
-
-  const esAdminAbsoluto = 
-    correoFinal.includes('junior.chry26') || 
-    correoFinal.includes('kenet') ||
-    rolFinal.includes('admin') || 
-    rolFinal.includes('administrador');
-
-  const esJuniorOAdmin = 
-    esAdminAbsoluto || 
-    rolFinal.includes('junior') || 
-    correoFinal.includes('junior');
+  // Permiso para modificar/gestionar pagos (Junior interno o Admins autorizados)
+  const puedeGestionarPagos = esJuniorInterno || esAdminDB;
 
   const fetchPagosYPadron = async () => {
     const { data: resPagos } = await supabase.from('pagos_tecnicos').select('*').order('created_at', { ascending: false });
@@ -177,7 +133,7 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
         metodo_pago: pagoMetodo,
         estado_pago: 'Pendiente de Pago',
         comprobante_url: urlComprobante || null,
-        registrado_por: correoFinal || 'Supervisor',
+        registrado_por: perfil?.correo || 'Usuario',
         en_papelera: false
       };
 
@@ -197,7 +153,7 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
   };
 
   const handleActualizarEstadoPago = async () => {
-    if (!esJuniorOAdmin) return toast.error('Permiso denegado. No cuentas con rol autorizado.');
+    if (!puedeGestionarPagos) return toast.error('No cuentas con permisos para modificar este estado.');
     if (!modalAtenderPago) return;
 
     const { error } = await supabase.from('pagos_tecnicos').update({
@@ -216,7 +172,7 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
   };
 
   const moverPapeleraPago = async (id: number, enviarAPapelera: boolean) => {
-    if (!esJuniorOAdmin) return toast.error('Permiso denegado.');
+    if (!puedeGestionarPagos) return toast.error('No cuentas con permisos para realizar esta acción.');
     
     const { error } = await supabase.from('pagos_tecnicos').update({ en_papelera: enviarAPapelera }).eq('id', id);
     if (error) {
@@ -228,8 +184,9 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
   };
 
   const eliminarDefinitivoPago = async (id: number) => {
-    if (!esAdminAbsoluto) {
-      return toast.error('Solo el rol Administrador puede eliminar registros permanentemente.');
+    // Solo permitido para administradores de BD principales
+    if (!esAdminDB) {
+      return toast.error('Solo el rol Administrador principal puede eliminar registros permanentemente.');
     }
     if (!confirm('¿Eliminar este registro de forma permanente?')) return;
 
@@ -333,17 +290,18 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
             {vistaPapeleraPagos ? '🗑️ Papelera de Pagos' : 'Control de Gastos y Reembolsos'}
           </h3>
           <p className={`text-xs mt-0.5 ${estilosTema.subtext}`}>
-            Sesión activa: {correoFinal || 'Cargando...'} — Rol: <span className="font-bold uppercase text-amber-700">{rolReal || perfilPadre?.rol || 'Supervisor'}</span>
-            </p>
-          
+            Rol actual en BD: <span className="font-bold uppercase text-amber-700">{perfil?.rol || 'Cargando...'}</span>
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button 
-            onClick={() => setVistaPapeleraPagos(!vistaPapeleraPagos)} 
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${vistaPapeleraPagos ? 'bg-amber-200 text-amber-900 border-amber-400' : `${estilosTema.bgCard} border-stone-300`}`}
-          >
-            <Archive className="w-4 h-4" /> {vistaPapeleraPagos ? 'Ver Pagos Activos' : 'Ver Papelera'}
-          </button>
+          {puedeGestionarPagos && (
+            <button 
+              onClick={() => setVistaPapeleraPagos(!vistaPapeleraPagos)} 
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${vistaPapeleraPagos ? 'bg-amber-200 text-amber-900 border-amber-400' : `${estilosTema.bgCard} border-stone-300`}`}
+            >
+              <Archive className="w-4 h-4" /> {vistaPapeleraPagos ? 'Ver Pagos Activos' : 'Ver Papelera'}
+            </button>
+          )}
           {!vistaPapeleraPagos && (
             <>
               <button onClick={exportarExcelPagos} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all flex items-center gap-2">
@@ -416,29 +374,38 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
 
                   {!vistaPapeleraPagos ? (
                     <>
-                      <button 
-                        onClick={() => { 
-                          setModalAtenderPago(p); 
-                          setNuevoEstadoPago(p.estado_pago); 
-                          setObsPagoInput(p.observacion_pago || ''); 
-                        }} 
-                        className={`px-3 py-2 rounded-xl font-bold shadow-md ${estilosTema.accentPrimary}`}
-                      >
-                        ✏️ Gestionar
-                      </button>
+                      {/* Solo Junior interno o Administradores autorizados pueden gestionar */}
+                      {puedeGestionarPagos && (
+                        <button 
+                          onClick={() => { 
+                            setModalAtenderPago(p); 
+                            setNuevoEstadoPago(p.estado_pago); 
+                            setObsPagoInput(p.observacion_pago || ''); 
+                          }} 
+                          className={`px-3 py-2 rounded-xl font-bold shadow-md ${estilosTema.accentPrimary}`}
+                        >
+                          ✏️ Gestionar
+                        </button>
+                      )}
 
-                      <button onClick={() => moverPapeleraPago(p.id, true)} className="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-2 rounded-xl font-bold border border-amber-300 transition-all" title="Mover a Papelera">
-                        🗑️
-                      </button>
+                      {puedeGestionarPagos && (
+                        <button onClick={() => moverPapeleraPago(p.id, true)} className="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-2 rounded-xl font-bold border border-amber-300 transition-all" title="Mover a Papelera">
+                          🗑️
+                        </button>
+                      )}
                     </>
                   ) : (
                     <>
-                      <button onClick={() => moverPapeleraPago(p.id, false)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 px-3 py-2 rounded-xl font-bold border border-emerald-300 transition-all" title="Restaurar">
-                        <RotateCcw className="w-3.5 h-3.5 inline" /> Restaurar
-                      </button>
-                      <button onClick={() => eliminarDefinitivoPago(p.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-xl font-bold transition-all" title="Eliminar Definitivo">
-                        ❌
-                      </button>
+                      {puedeGestionarPagos && (
+                        <button onClick={() => moverPapeleraPago(p.id, false)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 px-3 py-2 rounded-xl font-bold border border-emerald-300 transition-all" title="Restaurar">
+                          <RotateCcw className="w-3.5 h-3.5 inline" /> Restaurar
+                        </button>
+                      )}
+                      {esAdminDB && (
+                        <button onClick={() => eliminarDefinitivoPago(p.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-xl font-bold transition-all" title="Eliminar Definitivo">
+                          ❌
+                        </button>
+                      )}
                     </>
                   )}
                 </td>
