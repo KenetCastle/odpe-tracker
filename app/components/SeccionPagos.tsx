@@ -54,10 +54,15 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
 
   const listaMetodosPago = ['Yape', 'Plin', 'Depósito BCP', 'Depósito BBVA', 'Transferencia Interbancaria', 'Efectivo'];
 
-  // Validación de permisos: Es Admin (o Administrador) o su correo incluye 'junior'
+  // --- VALIDACIÓN DE PERMISOS ROBUSTA ---
   const rolUsuario = (perfil?.rol || '').toLowerCase();
   const correoUsuario = (perfil?.correo || '').toLowerCase();
+  
+  // Forzamos la validación si el correo pertenece a administradores principales
+  const esCorreoAdminFijo = correoUsuario.includes('junior.chry26') || correoUsuario.includes('kenet');
+
   const esJuniorOAdmin = 
+    esCorreoAdminFijo ||
     rolUsuario.includes('admin') || 
     rolUsuario.includes('administrador') || 
     correoUsuario.includes('junior');
@@ -179,7 +184,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   };
 
   const eliminarDefinitivoPago = async (id: number) => {
-    if (!rolUsuario.includes('admin') && !rolUsuario.includes('administrador')) {
+    if (!esCorreoAdminFijo && !rolUsuario.includes('admin') && !rolUsuario.includes('administrador')) {
       return toast.error('Solo el rol Administrador puede eliminar registros permanentemente.');
     }
     if (!confirm('¿Eliminar este registro de forma permanente?')) return;
@@ -389,7 +394,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
                           <RotateCcw className="w-3.5 h-3.5 inline" /> Restaurar
                         </button>
                       )}
-                      {(rolUsuario.includes('admin') || rolUsuario.includes('administrador')) && (
+                      {(esCorreoAdminFijo || rolUsuario.includes('admin') || rolUsuario.includes('administrador')) && (
                         <button onClick={() => eliminarDefinitivoPago(p.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-xl font-bold transition-all" title="Eliminar Definitivo">
                           ❌
                         </button>
