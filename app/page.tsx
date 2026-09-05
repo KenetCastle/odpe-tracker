@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import PortalTecnico from '@/app/components/PortalTecnico';
-import TablaTecnicos from '@/app/components/TablaTecnicos';
+import SeccionPagos from '@/app/components/SeccionPagos';
 import { Toaster, toast } from 'sonner';
 import * as XLSX from 'xlsx-js-style';
 import {
@@ -17,7 +17,6 @@ import {
   PlusCircle,
   Archive,
   LogOut,
-  Camera,
   ShieldCheck,
   Palette,
   Sun,
@@ -25,7 +24,8 @@ import {
   Coffee,
   UserCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  DollarSign
 } from 'lucide-react';
 
 interface Incidencia {
@@ -70,7 +70,7 @@ export default function Home() {
   const [tema, setTema] = useState<Tema>('calido-claro');
 
   const [modoReportePublico, setModoReportePublico] = useState(false);
-  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'odpes' | 'supervisores' | 'reportes' | 'historial'>('incidentes');
+  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'pagos' | 'odpes' | 'supervisores' | 'reportes' | 'historial'>('incidentes');
 
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -595,6 +595,10 @@ export default function Home() {
               <span className="flex items-center gap-3"><Wrench className="w-4 h-4" /> Reportes Soportes</span>
               <span className="bg-emerald-950/80 text-[10px] px-2 py-0.5 rounded-full text-emerald-300 border border-emerald-700/60 font-bold">Campo</span>
             </button>
+            <button onClick={() => setSeccionActiva('pagos')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-xs ${seccionActiva === 'pagos' ? 'bg-amber-600 text-white' : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
+              <span className="flex items-center gap-3"><DollarSign className="w-4 h-4" /> Pagos y Reembolsos</span>
+              <span className="bg-amber-950/80 text-[10px] px-2 py-0.5 rounded-full text-amber-300 border border-amber-700/60 font-bold">Junior</span>
+            </button>
             <button onClick={() => setSeccionActiva('supervisores')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-xs ${seccionActiva === 'supervisores' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <UserCheck className="w-4 h-4" /> Supervisores 👥
             </button>
@@ -645,8 +649,8 @@ export default function Home() {
         <header className={`flex justify-between items-center ${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm`}>
           <div>
             <h1 className="text-xl font-black uppercase tracking-tight flex items-center gap-2.5">
-              {seccionActiva === 'soportes' ? <Wrench className="w-6 h-6 text-emerald-600" /> : seccionActiva === 'supervisores' ? <UserCheck className="w-6 h-6 text-amber-700" /> : <FileText className="w-6 h-6 text-amber-700" />}
-              {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva === 'supervisores' ? 'Gestión y Asignación de Supervisores' : seccionActiva}
+              {seccionActiva === 'soportes' ? <Wrench className="w-6 h-6 text-emerald-600" /> : seccionActiva === 'pagos' ? <DollarSign className="w-6 h-6 text-amber-600" /> : seccionActiva === 'supervisores' ? <UserCheck className="w-6 h-6 text-amber-700" /> : <FileText className="w-6 h-6 text-amber-700" />}
+              {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva === 'pagos' ? 'Gestión de Pagos y Reembolsos a Técnicos' : seccionActiva === 'supervisores' ? 'Gestión y Asignación de Supervisores' : seccionActiva}
             </h1>
             <p className={`text-xs mt-1 ${estilosTema.subtext}`}>Monitoreo y auditoría técnica para {listaPadron.length || 126} sedes regionales</p>
           </div>
@@ -697,6 +701,11 @@ export default function Home() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* COMPONENTE MODULARIZADO DE PAGOS */}
+        {seccionActiva === 'pagos' && (
+          <SeccionPagos estilosTema={estilosTema} perfil={perfil} />
         )}
 
         {/* PESTAÑA SUPERVISORES */}
@@ -1254,8 +1263,8 @@ export default function Home() {
           <div className={`${estilosTema.bgCard} p-10 rounded-2xl border shadow-sm space-y-5 text-center py-20 max-w-xl mx-auto`}>
             <BarChart3 className="w-14 h-14 text-emerald-600 mx-auto" />
             <h3 className="font-bold text-xl">Consolidado Oficial de Incidentes</h3>
-            <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte  en formato Excel (`.xlsx`)</p>
-            <button onClick={exportarExcelProfesional} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel </button>
+            <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte profesional en formato Excel (`.xlsx`) con cabeceras estilizadas, anchos adaptados y bordes limpios.</p>
+            <button onClick={exportarExcelProfesional} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Profesional</button>
           </div>
         )}
 
@@ -1361,7 +1370,7 @@ export default function Home() {
                 <p><strong>Equipo Afectado:</strong> <span className="font-semibold">{modalVer.equipo_afectado}</span> ({modalVer.marca || 'S/M'} - {modalVer.modelo || 'S/M'})</p>
                 <p><strong>N° Serie:</strong> <span className="font-mono">{modalVer.serie || 'N/A'}</span></p>
                 <p><strong>Supervisor de Sede:</strong> {modalVer.supervisor || 'N/A'}</p>
-                <p><strong>Delegado a:</strong> <span className="font-bold text-amber-700">{modalVer.supervisor_asignado || 'Sin delegar'}</span>5</p>
+                <p><strong>Delegado a:</strong> <span className="font-bold text-amber-700">{modalVer.supervisor_asignado || 'Sin delegar'}</span></p>
                 <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'}</p>
                 <p><strong>DNI / Celular Técnico:</strong> <span className="font-mono">{modalVer.tecnico_dni || 'S/N'} / {modalVer.tecnico_celular || 'S/N'}</span></p>
                 <p><strong>Observaciones / Historial:</strong></p>
