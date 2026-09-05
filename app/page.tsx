@@ -647,17 +647,20 @@ export default function Home() {
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 p-8 overflow-y-auto space-y-6">
         <header className={`flex justify-between items-center ${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm`}>
-          <div>
-            <h1 className="text-xl font-black uppercase tracking-tight flex items-center gap-2.5">
-              {seccionActiva === 'soportes' ? <Wrench className="w-6 h-6 text-emerald-600" /> : seccionActiva === 'pagos' ? <DollarSign className="w-6 h-6 text-amber-600" /> : seccionActiva === 'supervisores' ? <UserCheck className="w-6 h-6 text-amber-700" /> : <FileText className="w-6 h-6 text-amber-700" />}
-              {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva === 'pagos' ? 'Gestión de Pagos y Reembolsos a Técnicos' : seccionActiva === 'supervisores' ? 'Gestión y Asignación de Supervisores' : seccionActiva}
-            </h1>
-            <p className={`text-xs mt-1 ${estilosTema.subtext}`}>Monitoreo y auditoría técnica para {listaPadron.length || 126} sedes regionales</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-black uppercase tracking-tight flex items-center gap-2.5">
+            {seccionActiva === 'soportes' ? <Wrench className="w-6 h-6 text-emerald-600" /> : seccionActiva === 'pagos' ? <DollarSign className="w-6 h-6 text-amber-600" /> : seccionActiva === 'supervisores' ? <UserCheck className="w-6 h-6 text-amber-700" /> : <FileText className="w-6 h-6 text-amber-700" />}
+            {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva === 'pagos' ? 'Gestión de Pagos y Reembolsos a Técnicos' : seccionActiva === 'supervisores' ? 'Gestión y Asignación de Supervisores' : seccionActiva}
+          </h1>
+          <p className={`text-xs mt-1 ${estilosTema.subtext}`}>Monitoreo y auditoría técnica para {listaPadron.length || 126} sedes regionales</p>
+        </div>
+
+        {seccionActiva !== 'pagos' && (
           <button onClick={() => setVistaPapelera(!vistaPapelera)} className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${vistaPapelera ? 'bg-amber-200/80 text-amber-900 border-amber-400' : `${estilosTema.bgCard} border-stone-300`}`}>
             <Archive className="w-4 h-4" /> {vistaPapelera ? 'Ver Activos' : 'Papelera'}
           </button>
-        </header>
+        )}
+      </header>
 
         {seccionActiva === 'dashboard' && (
           <div className="space-y-6">
