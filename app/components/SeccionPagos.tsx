@@ -332,7 +332,10 @@ export default function SeccionPagos({ estilosTema, perfil: perfilPadre }: Secci
           <h3 className="text-sm font-black uppercase text-amber-800">
             {vistaPapeleraPagos ? '🗑️ Papelera de Pagos' : 'Control de Gastos y Reembolsos'}
           </h3>
-          <p className={`text-xs mt-0.5 ${estilosTema.subtext}`}>Sesión activa: {correoFinal || 'Cargando...'} ({rolFinal || 'Usuario'})</p>
+          <p className={`text-xs mt-0.5 ${estilosTema.subtext}`}>
+            Sesión activa: {correoFinal || 'Cargando...'} — Rol: <span className="font-bold uppercase text-amber-700">{rolReal || perfilPadre?.rol || 'Supervisor'}</span>
+            </p>
+          
         </div>
         <div className="flex flex-wrap gap-2">
           <button 
