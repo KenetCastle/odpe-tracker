@@ -22,7 +22,8 @@ import {
   Palette,
   Sun,
   Moon,
-  Coffee
+  Coffee,
+  UserCheck
 } from 'lucide-react';
 
 interface Incidencia {
@@ -37,6 +38,7 @@ interface Incidencia {
   descripcion: string;
   odpe_nombre: string;
   supervisor: string;
+  supervisor_asignado?: string;
   tecnico_nombre: string;
   tecnico_dni: string;
   tecnico_celular: string;
@@ -66,16 +68,17 @@ export default function Home() {
   const [tema, setTema] = useState<Tema>('calido-claro');
 
   const [modoReportePublico, setModoReportePublico] = useState(false);
-  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'odpes' | 'tecnicos' | 'reportes' | 'historial'>('incidentes');
+  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'odpes' | 'tecnicos' | 'supervisores' | 'reportes' | 'historial'>('incidentes');
 
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
   const [vistaPapelera, setVistaPapelera] = useState(false);
   const [modalVer, setModalVer] = useState<Incidencia | null>(null);
 
-  // Modal Edición Rápida Soportes
+  // Modal Edición Rápida Soportes / Delegación
   const [modalEditarSoporte, setModalEditarSoporte] = useState<Incidencia | null>(null);
   const [nuevoEstadoSoporte, setNuevoEstadoSoporte] = useState('Resuelto');
+  const [nuevoSupervisorAsignado, setNuevoSupervisorAsignado] = useState('');
   const [nuevasObsSoporte, setNuevasObsSoporte] = useState('');
   const [guardandoSoporte, setGuardandoSoporte] = useState(false);
 
@@ -96,10 +99,14 @@ export default function Home() {
   const [inputBusqueda, setInputBusqueda] = useState('');
   const [busquedaActiva, setBusquedaActiva] = useState('');
 
+  // Supervisor seleccionado para ver sus tareas asignadas en detalle
+  const [supervisorDetalleSeleccionado, setSupervisorDetalleSeleccionado] = useState<string | null>(null);
+
   // Formulario Admin
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [odpeSeleccionada, setOdpeSeleccionada] = useState('');
   const [supervisor, setSupervisor] = useState('');
+  const [supervisorAsignadoAdmin, setSupervisorAsignadoAdmin] = useState('');
   const [tecnicoNombre, setTecnicoNombre] = useState('');
   const [tecnicoDni, setTecnicoDni] = useState('');
   const [tecnicoCelular, setTecnicoCelular] = useState('');
@@ -223,9 +230,20 @@ export default function Home() {
     setLoading(false);
   };
 
+  // EFECTO DE SINCRONIZACIÓN EN TIEMPO REAL (WEB SOCKETS)
   useEffect(() => {
     fetchIncidencias();
     fetchPadronOdpes();
+
+    const canalSincronizacion = supabase.channel('realtime-incidencias')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incidencias' }, () => {
+        fetchIncidencias();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalSincronizacion);
+    };
   }, []);
 
   const subirImagen = async (file: File) => {
@@ -238,25 +256,6 @@ export default function Home() {
 
     const { data } = supabase.storage.from('incidencias-fotos').getPublicUrl(filePath);
     return data.publicUrl;
-  };
-
-  const agregarAlCatalogo = (tipo: 'supervisor' | 'equipo') => {
-    if (!inputNuevoCatalog.trim()) return;
-    const val = inputNuevoCatalog.trim();
-
-    if (tipo === 'supervisor' && !listaSupervisores.includes(val)) {
-      setListaSupervisores([...listaSupervisores, val]);
-      setSupervisor(val);
-      toast.success(`Supervisor ${val} añadido`);
-    }
-    if (tipo === 'equipo' && !listaEquipos.includes(val)) {
-      setListaEquipos([...listaEquipos, val.toUpperCase()]);
-      setEquipoSeleccionado(val.toUpperCase());
-      toast.success(`Equipo ${val.toUpperCase()} añadido`);
-    }
-
-    setInputNuevoCatalog('');
-    setModalCatalogos(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -276,6 +275,7 @@ export default function Home() {
       const payload = {
         odpe_nombre: odpeSeleccionada,
         supervisor: supervisor,
+        supervisor_asignado: supervisorAsignadoAdmin || null,
         tecnico_nombre: tecnicoNombre,
         tecnico_dni: tecnicoDni,
         tecnico_celular: tecnicoCelular.replace(/\s+/g, ''),
@@ -295,12 +295,10 @@ export default function Home() {
         await supabase.from('incidencias').update(payload).eq('id', editandoId);
         toast.success('Incidencia actualizada correctamente');
         limpiarFormulario();
-        fetchIncidencias();
       } else {
         await supabase.from('incidencias').insert([{ ...payload, creado_por: perfil?.correo, en_papelera: false }]);
         toast.success('Incidencia registrada con éxito');
         limpiarFormulario();
-        fetchIncidencias();
       }
     } catch (err: any) {
       toast.error('Error al subir imágenes: ' + err.message);
@@ -312,20 +310,22 @@ export default function Home() {
     if (!modalEditarSoporte) return;
     setGuardandoSoporte(true);
 
-    const observacionActualizada = `${modalEditarSoporte.descripcion}\n\n[ACTUALIZACIÓN ATENCIÓN]: ${nuevasObsSoporte.trim()}`;
+    const observacionActualizada = nuevasObsSoporte.trim()
+      ? `${modalEditarSoporte.descripcion}\n\n[ACTUALIZACIÓN ATENCIÓN]: ${nuevasObsSoporte.trim()}`
+      : modalEditarSoporte.descripcion;
 
     const { error } = await supabase.from('incidencias').update({
       estado: nuevoEstadoSoporte,
-      descripcion: nuevasObsSoporte.trim() ? observacionActualizada : modalEditarSoporte.descripcion
+      supervisor_asignado: nuevoSupervisorAsignado || null,
+      descripcion: observacionActualizada
     }).eq('id', modalEditarSoporte.id);
 
     if (error) {
       toast.error('Error al actualizar soporte: ' + error.message);
     } else {
-      toast.success('Reporte de soporte actualizado');
+      toast.success('Reporte de soporte y delegación actualizados');
       setModalEditarSoporte(null);
       setNuevasObsSoporte('');
-      fetchIncidencias();
     }
     setGuardandoSoporte(false);
   };
@@ -334,7 +334,6 @@ export default function Home() {
     if (perfil?.rol === 'Visitante') return toast.error('Acción no permitida.');
     await supabase.from('incidencias').update({ en_papelera: enviarAPapelera }).eq('id', id);
     toast.info(enviarAPapelera ? 'Movido a papelera' : 'Restaurado');
-    fetchIncidencias();
   };
 
   const eliminarDefinitivo = async (id: number) => {
@@ -342,7 +341,6 @@ export default function Home() {
     if (confirm('¿Eliminar registro de forma permanente?')) {
       await supabase.from('incidencias').delete().eq('id', id);
       toast.success('Registro eliminado definitivamente');
-      fetchIncidencias();
     }
   };
 
@@ -350,6 +348,7 @@ export default function Home() {
     setEditandoId(item.id);
     setOdpeSeleccionada(item.odpe_nombre);
     setSupervisor(item.supervisor || '');
+    setSupervisorAsignadoAdmin(item.supervisor_asignado || '');
     setTecnicoNombre(item.tecnico_nombre || '');
     setTecnicoDni(item.tecnico_dni || '');
     setTecnicoCelular(item.tecnico_celular || '');
@@ -363,7 +362,7 @@ export default function Home() {
   };
 
   const copiarResumen = (item: Incidencia) => {
-    const texto = `[INCIDENCIA #${item.id}] ${item.odpe_nombre} | Equipo: ${item.equipo_afectado} (${item.marca || 'S/M'} - Serie: ${item.serie || 'S/S'}) | Estado: ${item.estado} | Téco: ${item.tecnico_nombre} (${item.tecnico_celular})`;
+    const texto = `[INCIDENCIA #${item.id}] ${item.odpe_nombre} | Equipo: ${item.equipo_afectado} (${item.marca || 'S/M'} - Serie: ${item.serie || 'S/S'}) | Estado: ${item.estado} | Delegado a: ${item.supervisor_asignado || 'Sin asignar'}`;
     navigator.clipboard.writeText(texto);
     toast.success('Resumen copiado al portapapeles');
   };
@@ -374,6 +373,7 @@ export default function Home() {
     setModelo('');
     setSerie('');
     setDescripcion('');
+    setSupervisorAsignadoAdmin('');
     setOtroEquipoAdmin('');
     setArchivoFoto1(null);
     setArchivoFoto2(null);
@@ -383,7 +383,7 @@ export default function Home() {
   const exportarCSV = () => {
     if (incidencias.length === 0) return toast.error('No hay datos para exportar');
     const sep = ';';
-    const columnas = ['ID', 'FECHA', 'ODPE', 'EQUIPO', 'MARCA', 'MODELO', 'SERIE', 'ESTADO', 'TECNICO', 'CELULAR', 'FOTO1', 'FOTO2', 'CREADO_POR'];
+    const columnas = ['ID', 'FECHA', 'ODPE', 'EQUIPO', 'MARCA', 'MODELO', 'SERIE', 'ESTADO', 'SUPERVISOR_ASIGNADO', 'TECNICO', 'CELULAR', 'CREADO_POR'];
     const filas = incidenciasFiltradas.map(i => [
       i.id,
       new Date(i.created_at).toLocaleDateString(),
@@ -393,10 +393,9 @@ export default function Home() {
       `"${i.modelo || ''}"`,
       `"${i.serie || ''}"`,
       `"${i.estado}"`,
+      `"${i.supervisor_asignado || ''}"`,
       `"${i.tecnico_nombre || ''}"`,
       `"${i.tecnico_celular || ''}"`,
-      `"${i.foto_1 || ''}"`,
-      `"${i.foto_2 || ''}"`,
       `"${i.creado_por || ''}"`
     ].join(sep));
 
@@ -430,6 +429,7 @@ export default function Home() {
     const coincideBusqueda = (item.id.toString()).includes(busquedaActiva) ||
                              (item.equipo_afectado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
                              (item.odpe_nombre || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
+                             (item.supervisor_asignado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
                              (item.descripcion || '').toLowerCase().includes(busquedaActiva.toLowerCase());
     
     const esReporteSoporte = item.creado_por?.includes('(Técnico de Campo)') || item.creado_por?.includes('Técnico');
@@ -546,6 +546,9 @@ export default function Home() {
               <span className="flex items-center gap-2.5"><Wrench className="w-4 h-4" /> Reportes Soportes</span>
               <span className="bg-emerald-950/80 text-[9px] px-2 py-0.5 rounded-full text-emerald-300 border border-emerald-700/60 font-bold">Campo</span>
             </button>
+            <button onClick={() => setSeccionActiva('supervisores')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'supervisores' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
+              <UserCheck className="w-4 h-4" /> Supervisores 👥
+            </button>
             <button onClick={() => setSeccionActiva('odpes')} className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${seccionActiva === 'odpes' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <Globe className="w-4 h-4" /> Directorio ODPEs ({listaPadron.length})
             </button>
@@ -596,8 +599,8 @@ export default function Home() {
         <header className={`flex justify-between items-center ${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm`}>
           <div>
             <h1 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-              {seccionActiva === 'soportes' ? <Wrench className="w-5 h-5 text-emerald-600" /> : <FileText className="w-5 h-5 text-amber-700" />}
-              {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva}
+              {seccionActiva === 'soportes' ? <Wrench className="w-5 h-5 text-emerald-600" /> : seccionActiva === 'supervisores' ? <UserCheck className="w-5 h-5 text-amber-700" /> : <FileText className="w-5 h-5 text-amber-700" />}
+              {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva === 'supervisores' ? 'Gestión y Asignación de Supervisores' : seccionActiva}
             </h1>
             <p className={`text-xs ${estilosTema.subtext}`}>Monitoreo y auditoría técnica para {listaPadron.length || 126} sedes regionales</p>
           </div>
@@ -614,19 +617,19 @@ export default function Home() {
                 <p className="text-3xl font-black">{listaPadron.length}</p>
               </div>
               <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
-                <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider block mb-1">Reportados</span>
+                <span className={`text-[10px] font-bold text-red-600 uppercase tracking-wider block mb-1`}>Reportados</span>
                 <p className="text-3xl font-black text-red-600">{totalReportados}</p>
               </div>
               <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
-                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block mb-1">En Proceso</span>
+                <span className={`text-[10px] font-bold text-amber-600 uppercase tracking-wider block mb-1`}>En Proceso</span>
                 <p className="text-3xl font-black text-amber-600">{totalEnProceso}</p>
               </div>
               <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
-                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider block mb-1">En Almacén</span>
+                <span className={`text-[10px] font-bold text-purple-600 uppercase tracking-wider block mb-1`}>En Almacén</span>
                 <p className="text-3xl font-black text-purple-600">{totalAlmacen}</p>
               </div>
               <div className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm text-center`}>
-                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block mb-1">Resueltos</span>
+                <span className={`text-[10px] font-bold text-emerald-600 uppercase tracking-wider block mb-1`}>Resueltos</span>
                 <p className="text-3xl font-black text-emerald-600">{totalResueltos}</p>
               </div>
             </div>
@@ -640,7 +643,7 @@ export default function Home() {
                   <div key={i.id} className={`flex justify-between items-center p-3.5 rounded-xl text-xs border ${estilosTema.bgCard}`}>
                     <div>
                       <span className="font-mono text-amber-700 font-bold">#{i.id} - {i.odpe_nombre}</span>
-                      <p className="font-semibold">{i.equipo_afectado} ({i.marca || 'S/M'})</p>
+                      <p className="font-semibold">{i.equipo_afectado} ({i.marca || 'S/M'}) {i.supervisor_asignado ? `| Delegado a: ${i.supervisor_asignado}` : ''}</p>
                     </div>
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-stone-200/50 border-stone-300">{i.estado}</span>
                   </div>
@@ -650,13 +653,124 @@ export default function Home() {
           </div>
         )}
 
+        {/* PESTAÑA SUPERVISORES (NUEVO) */}
+        {seccionActiva === 'supervisores' && (
+          <div className="space-y-6">
+            {!supervisorDetalleSeleccionado ? (
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-amber-800">Seleccione un Supervisor para ver su carga asignada:</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {listaSupervisores.map((sup, idx) => {
+                    const asignadas = incidencias.filter(i => !i.en_papelera && i.supervisor_asignado === sup);
+                    const pendientes = asignadas.filter(i => i.estado !== 'Resuelto').length;
+                    const resueltas = asignadas.filter(i => i.estado === 'Resuelto').length;
+
+                    return (
+                      <div 
+                        key={idx} 
+                        onClick={() => setSupervisorDetalleSeleccionado(sup)}
+                        className={`${estilosTema.bgCard} p-5 rounded-2xl border shadow-sm cursor-pointer hover:border-amber-600 transition-all space-y-3`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-black text-sm text-amber-800">{sup}</h4>
+                          <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            {asignadas.length} Tareas
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-300/40 text-[11px]">
+                          <p className="text-amber-700 font-bold">Pendientes: {pendientes}</p>
+                          <p className="text-emerald-600 font-bold">Resueltas: {resueltas}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
+                <div className="flex justify-between items-center border-b border-stone-300/40 pb-3">
+                  <div>
+                    <h3 className="text-sm font-black uppercase text-amber-800">Tareas asignadas a: {supervisorDetalleSeleccionado}</h3>
+                    <p className={`text-xs ${estilosTema.subtext}`}>Listado completo de incidencias bajo su responsabilidad</p>
+                  </div>
+                  <button 
+                    onClick={() => setSupervisorDetalleSeleccionado(null)} 
+                    className="bg-stone-300/60 hover:bg-stone-300 px-3 py-1.5 rounded-xl font-bold text-xs"
+                  >
+                    ← Volver a Supervisores
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
+                      <tr>
+                        <th className="py-3.5 px-3">ID / ODPE</th>
+                        <th className="py-3.5 px-3">Equipo</th>
+                        <th className="py-3.5 px-3">Técnico Sede</th>
+                        <th className="py-3.5 px-3">Estado</th>
+                        <th className="py-3.5 px-3 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-300/40">
+                      {incidencias.filter(i => !i.en_papelera && i.supervisor_asignado === supervisorDetalleSeleccionado).map(item => (
+                        <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
+                          <td className="py-3.5 px-3">
+                            <span className="font-mono text-amber-700 font-bold">#{item.id}</span>
+                            <p className="font-bold">{item.odpe_nombre}</p>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <p className="font-semibold">{item.equipo_afectado}</p>
+                            <p className={`text-[10px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <p className="font-semibold">{item.tecnico_nombre || 'S/N'}</p>
+                            <p className={`text-[10px] ${estilosTema.subtext}`}>Cel: {item.tecnico_celular || 'S/N'}</p>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                              item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                              'bg-red-100 text-red-900 border border-red-300'
+                            }`}>
+                              {item.estado}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 text-right space-x-1.5">
+                            <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-2.5 py-1.5 rounded-lg font-bold">🔍 Ver</button>
+                            <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); setNuevoSupervisorAsignado(item.supervisor_asignado || ''); }} className={`px-2.5 py-1.5 rounded-lg font-bold ${estilosTema.accentPrimary}`}>✏️ Atender</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {incidencias.filter(i => !i.en_papelera && i.supervisor_asignado === supervisorDetalleSeleccionado).length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-xs opacity-60">Este supervisor no tiene incidencias asignadas actualmente.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* PESTAÑA REPORTES DE SOPORTES */}
         {seccionActiva === 'soportes' && (
           <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-stone-300/40 pb-4">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-3 opacity-50" />
-                <input type="text" placeholder="Buscar requerimiento..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className={`w-full rounded-xl p-2.5 pl-9 text-xs focus:outline-none ${estilosTema.bgInput}`} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar requerimiento..." 
+                  value={inputBusqueda} 
+                  onChange={(e) => {
+                    setInputBusqueda(e.target.value);
+                    setBusquedaActiva(e.target.value);
+                  }} 
+                  className={`w-full rounded-xl p-2.5 pl-9 text-xs focus:outline-none ${estilosTema.bgInput}`} 
+                />
               </div>
               <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={`w-full rounded-xl p-2.5 text-xs ${estilosTema.bgInput}`}>
                 <option value="Todos los Estados">Todos los Estados</option>
@@ -675,7 +789,7 @@ export default function Home() {
                     <th className="py-3.5 px-3">ID / ODPE</th>
                     <th className="py-3.5 px-3">Equipo</th>
                     <th className="py-3.5 px-3">Técnico de Campo</th>
-                    <th className="py-3.5 px-3">Evidencia</th>
+                    <th className="py-3.5 px-3">Delegado A</th>
                     <th className="py-3.5 px-3">Estado</th>
                     <th className="py-3.5 px-3 text-right">Acciones</th>
                   </tr>
@@ -696,13 +810,7 @@ export default function Home() {
                         <p className={`text-[10px] ${estilosTema.subtext}`}>Cel: {item.tecnico_celular || 'S/N'}</p>
                       </td>
                       <td className="py-3.5 px-3">
-                        {item.foto_1 || item.foto_2 ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                            <Camera className="w-3 h-3" /> {item.foto_1 && item.foto_2 ? '2 Fotos' : '1 Foto'}
-                          </span>
-                        ) : (
-                          <span className={`text-[10px] ${estilosTema.subtext}`}>Sin foto</span>
-                        )}
+                        <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
                       </td>
                       <td className="py-3.5 px-3">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -716,7 +824,7 @@ export default function Home() {
                       </td>
                       <td className="py-3.5 px-3 text-right space-x-1.5">
                         <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-2.5 py-1.5 rounded-lg font-bold transition-all" title="Ver Detalles">🔍 Ver</button>
-                        <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); }} className={`px-2.5 py-1.5 rounded-lg font-bold shadow-md transition-all ${estilosTema.accentPrimary}`} title="Atender">✏️ Atender</button>
+                        <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); setNuevoSupervisorAsignado(item.supervisor_asignado || ''); }} className={`px-2.5 py-1.5 rounded-lg font-bold shadow-md transition-all ${estilosTema.accentPrimary}`} title="Atender">✏️ Atender</button>
                         <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 px-2.5 py-1.5 rounded-lg border border-amber-300 font-bold transition-all" title="Papelera">🗑️</button>
                       </td>
                     </tr>
@@ -743,12 +851,19 @@ export default function Home() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <label className={`font-semibold ${estilosTema.subtext}`}>ODPE AFECTADA</label>
+                    <label className={`font-semibold ${estilosTema.subtext}`}>ODPE AFECTADA (Búsqueda Rápida)</label>
                     <input
                       type="text"
-                      placeholder="Filtrar ODPE..."
+                      placeholder="Escribe para buscar ODPE..."
                       value={busquedaOdpeInput}
-                      onChange={(e) => setBusquedaOdpeInput(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBusquedaOdpeInput(val);
+                        const filtradas = listaPadron.filter(p => p.odpe_nombre.toLowerCase().includes(val.toLowerCase()));
+                        if (filtradas.length > 0) {
+                          handleCambioOdpe(filtradas[0].odpe_nombre);
+                        }
+                      }}
                       className={`w-full rounded-lg p-2 text-xs mb-1 ${estilosTema.bgInput}`}
                     />
                     <select
@@ -771,6 +886,22 @@ export default function Home() {
                     </div>
                     
                     <input type="text" placeholder="Supervisor" value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className={`w-full rounded-lg p-2 font-semibold ${estilosTema.bgInput}`} />
+                    
+                    {/* CAMPO DELEGAR TAREA */}
+                    <div>
+                      <label className={`block font-[10px] uppercase font-bold mb-1 ${estilosTema.subtext}`}>Delegar a Supervisor:</label>
+                      <select
+                        value={supervisorAsignadoAdmin}
+                        onChange={(e) => setSupervisorAsignadoAdmin(e.target.value)}
+                        className={`w-full rounded-lg p-2 font-bold ${estilosTema.bgInput}`}
+                      >
+                        <option value="">-- Sin delegar --</option>
+                        {listaSupervisores.map((sup, idx) => (
+                          <option key={idx} value={sup}>{sup}</option>
+                        ))}
+                      </select>
+                    </div>
+
                     <input type="text" placeholder="Nombre Técnico" value={tecnicoNombre} onChange={(e) => setTecnicoNombre(e.target.value)} className={`w-full rounded-lg p-2 font-semibold ${estilosTema.bgInput}`} />
                     <div className="grid grid-cols-2 gap-2">
                       <input type="text" placeholder="DNI" maxLength={8} value={tecnicoDni} onChange={(e) => setTecnicoDni(e.target.value)} className={`rounded-lg p-2 font-mono ${estilosTema.bgInput}`} />
@@ -839,7 +970,16 @@ export default function Home() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-stone-300/40 pb-4">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-3 opacity-50" />
-                  <input type="text" placeholder="Buscar..." value={inputBusqueda} onChange={(e) => setInputBusqueda(e.target.value)} className={`w-full rounded-xl p-2.5 pl-9 text-xs ${estilosTema.bgInput}`} />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar en vivo..." 
+                    value={inputBusqueda} 
+                    onChange={(e) => {
+                      setInputBusqueda(e.target.value);
+                      setBusquedaActiva(e.target.value);
+                    }} 
+                    className={`w-full rounded-xl p-2.5 pl-9 text-xs ${estilosTema.bgInput}`} 
+                  />
                 </div>
                 <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={`w-full rounded-xl p-2.5 text-xs ${estilosTema.bgInput}`}>
                   <option value="Todos los Estados">Todos los Estados</option>
@@ -860,6 +1000,7 @@ export default function Home() {
                       <tr>
                         <th className="py-3.5 px-3">ID / ODPE</th>
                         <th className="py-3.5 px-3">Equipo</th>
+                        <th className="py-3.5 px-3">Delegado A</th>
                         <th className="py-3.5 px-3">Estado</th>
                         <th className="py-3.5 px-3 text-right">Acciones</th>
                       </tr>
@@ -875,6 +1016,9 @@ export default function Home() {
                           <td className="py-3.5 px-3">
                             <p className="font-semibold">{item.equipo_afectado}</p>
                             <p className={`text-[10px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
                           </td>
                           <td className="py-3.5 px-3">
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -976,12 +1120,12 @@ export default function Home() {
         )}
       </main>
 
-      {/* MODAL EDITAR SOPORTE */}
+      {/* MODAL EDITAR SOPORTE Y DELEGACIÓN */}
       {modalEditarSoporte && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className={`${estilosTema.bgCard} rounded-2xl max-w-md w-full p-6 space-y-4 text-xs border shadow-2xl`}>
             <div className="flex justify-between items-center border-b border-stone-300/40 pb-2">
-              <h3 className="font-bold text-sm">Atender Solicitud #{modalEditarSoporte.id} ({modalEditarSoporte.odpe_nombre})</h3>
+              <h3 className="font-bold text-sm">Atender / Delegar Solicitud #{modalEditarSoporte.id}</h3>
               <button onClick={() => setModalEditarSoporte(null)} className="font-bold">✕</button>
             </div>
 
@@ -994,6 +1138,20 @@ export default function Home() {
                   className={`w-full rounded-xl p-2.5 font-bold ${estilosTema.bgInput}`}
                 >
                   {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Delegar a Supervisor:</label>
+                <select
+                  value={nuevoSupervisorAsignado}
+                  onChange={(e) => setNuevoSupervisorAsignado(e.target.value)}
+                  className={`w-full rounded-xl p-2.5 font-bold ${estilosTema.bgInput}`}
+                >
+                  <option value="">-- Sin delegar --</option>
+                  {listaSupervisores.map((sup, idx) => (
+                    <option key={idx} value={sup}>{sup}</option>
+                  ))}
                 </select>
               </div>
 
@@ -1035,14 +1193,14 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2 border-b border-stone-300/40 pb-2 text-[11px]">
                 <p><strong>ODPE:</strong> <span className="text-amber-700 font-bold">{modalVer.odpe_nombre}</span></p>
                 <p><strong>Estado:</strong> <span className="font-bold text-emerald-600">{modalVer.estado}</span></p>
-                <p><strong>Creado por:</strong> <span className="font-semibold text-purple-700">{modalVer.creado_por || 'Sistema'}</span></p>
+                <p><strong>Delegado a:</strong> <span className="font-bold text-amber-700">{modalVer.supervisor_asignado || 'Sin delegar'}</span></p>
                 <p><strong>Fecha:</strong> {new Date(modalVer.created_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' })}</p>
               </div>
 
               <div className="space-y-1.5 pt-1">
                 <p><strong>Equipo:</strong> {modalVer.equipo_afectado} ({modalVer.marca || 'S/M'} - {modalVer.modelo || 'S/M'})</p>
                 <p><strong>N° Serie:</strong> <span className="font-mono">{modalVer.serie || 'N/A'}</span></p>
-                <p><strong>Supervisor:</strong> {modalVer.supervisor || 'N/A'}</p>
+                <p><strong>Supervisor de Sede:</strong> {modalVer.supervisor || 'N/A'}</p>
                 <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'}</p>
                 <p><strong>DNI / Celular Técnico:</strong> <span className="font-mono">{modalVer.tecnico_dni || 'S/N'} / {modalVer.tecnico_celular || 'S/N'}</span></p>
                 <p><strong>Observaciones:</strong> {modalVer.descripcion || 'Sin observaciones'}</p>
