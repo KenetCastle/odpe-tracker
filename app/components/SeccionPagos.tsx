@@ -33,15 +33,12 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   const [paginaActualPagos, setPaginaActualPagos] = useState(1);
   const elementosPorPagina = 20;
 
-  // Filtro / Búsqueda local
   const [busquedaPagoInput, setBusquedaPagoInput] = useState('');
 
-  // Modales
   const [modalNuevoPago, setModalNuevoPago] = useState(false);
   const [modalAtenderPago, setModalAtenderPago] = useState<PagoTecnico | null>(null);
   const [modalVerDetallePago, setModalVerDetallePago] = useState<PagoTecnico | null>(null);
   
-  // Formulario nuevo pago
   const [pagoOdpe, setPagoOdpe] = useState('');
   const [pagoTecnicoNombre, setPagoTecnicoNombre] = useState('');
   const [pagoTecnicoDni, setPagoTecnicoDni] = useState('');
@@ -51,13 +48,10 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   const [pagoComprobanteFile, setPagoComprobanteFile] = useState<File | null>(null);
   const [enviandoPago, setEnviandoPago] = useState(false);
 
-  // Formulario atender pago
   const [nuevoEstadoPago, setNuevoEstadoPago] = useState('Pagado');
   const [obsPagoInput, setObsPagoInput] = useState('');
 
   const listaMetodosPago = ['Yape', 'Plin', 'Depósito BCP', 'Depósito BBVA', 'Transferencia Interbancaria', 'Efectivo'];
-
-  // Validación de permisos para Junior / Admin
   const esJuniorOAdmin = perfil?.rol === 'Admin' || (perfil?.correo || '').toLowerCase().includes('junior');
 
   const fetchPagosYPadron = async () => {
@@ -165,12 +159,12 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   };
 
   const eliminarPagoDuplicado = async (id: number) => {
-    if (!esJuniorOAdmin) return toast.error('Solo Junior o Administradores pueden eliminar registros duplicados.');
+    if (!esJuniorOAdmin) return toast.error('Solo Junior o Administradores pueden eliminar registros.');
     if (!confirm('¿Estás seguro de eliminar este registro de pago de forma permanente?')) return;
 
     const { error } = await supabase.from('pagos_tecnicos').delete().eq('id', id);
     if (error) {
-      toast.error('Error al eliminar: ' + error.message);
+      toast.error('Error al eliminar en base de datos: ' + error.message);
     } else {
       toast.success('Registro eliminado correctamente');
       fetchPagosYPadron();
@@ -274,7 +268,6 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
         </div>
       </div>
 
-      {/* Barra de Búsqueda Local de Pagos */}
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3.5 top-3.5 opacity-50" />
         <input 
@@ -310,7 +303,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
                   <p className="font-semibold">{p.tecnico_nombre}</p>
                   <p className={`text-[11px] ${estilosTema.subtext}`}>DNI: {p.tecnico_dni}</p>
                 </td>
-                <td className="py-4 px-4">
+                <td className="py-4 px-4 max-w-xs break-words">
                   <p className="font-semibold">{p.motivo_gasto}</p>
                   {p.observacion_pago && <p className="text-[11px] text-amber-800">Obs: {p.observacion_pago}</p>}
                 </td>
@@ -327,7 +320,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
                     {p.estado_pago}
                   </span>
                 </td>
-                <td className="py-4 px-4 text-right space-x-1.5">
+                <td className="py-4 px-4 text-right space-x-1.5 whitespace-nowrap">
                   <button onClick={() => setModalVerDetallePago(p)} className="bg-stone-300/60 hover:bg-stone-300 px-3 py-2 rounded-xl font-bold inline-flex items-center gap-1" title="Ver Detalles">
                     <Eye className="w-3.5 h-3.5" /> Ver
                   </button>
@@ -346,7 +339,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
                   </button>
 
                   {esJuniorOAdmin && (
-                    <button onClick={() => eliminarPagoDuplicado(p.id)} className="bg-red-900/20 hover:bg-red-900/40 text-red-700 px-2.5 py-2 rounded-xl font-bold border border-red-300 transition-all" title="Eliminar Duplicado">
+                    <button onClick={() => eliminarPagoDuplicado(p.id)} className="bg-red-900/20 hover:bg-red-900/40 text-red-700 px-2.5 py-2 rounded-xl font-bold border border-red-300 transition-all" title="Eliminar Registro">
                       <Trash2 className="w-3.5 h-3.5 inline" />
                     </button>
                   )}
@@ -408,7 +401,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
 
               <div>
                 <label className="block font-bold mb-1 uppercase text-[11px]">Motivo del Gasto:</label>
-                <input type="text" required placeholder="Ej. Compra de cable HDMI..." value={pagoMotivo} onChange={(e) => setPagoMotivo(e.target.value)} className={`w-full rounded-xl p-3 ${estilosTema.bgInput}`} />
+                <textarea rows={2} required placeholder="Ej. Compra de cable HDMI..." value={pagoMotivo} onChange={(e) => setPagoMotivo(e.target.value)} className={`w-full rounded-xl p-3 resize-none ${estilosTema.bgInput}`} />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -452,12 +445,12 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
             <div className={`p-4 rounded-xl border ${estilosTema.bgInput} space-y-2`}>
               <p><strong>ODPE:</strong> {modalVerDetallePago.odpe_nombre}</p>
               <p><strong>Técnico:</strong> {modalVerDetallePago.tecnico_nombre} (DNI: {modalVerDetallePago.tecnico_dni})</p>
-              <p><strong>Motivo:</strong> {modalVerDetallePago.motivo_gasto}</p>
+              <p className="break-words"><strong>Motivo:</strong> {modalVerDetallePago.motivo_gasto}</p>
               <p className="text-emerald-700 font-bold text-sm">Monto: S/ {Number(modalVerDetallePago.monto).toFixed(2)}</p>
               <p><strong>Método de Pago:</strong> {modalVerDetallePago.metodo_pago}</p>
               <p><strong>Estado Actual:</strong> <span className="uppercase font-bold">{modalVerDetallePago.estado_pago}</span></p>
               <p><strong>Registrado Por:</strong> {modalVerDetallePago.registrado_por || 'S/N'}</p>
-              {modalVerDetallePago.observacion_pago && <p><strong>Observación:</strong> {modalVerDetallePago.observacion_pago}</p>}
+              {modalVerDetallePago.observacion_pago && <p className="break-words"><strong>Observación:</strong> {modalVerDetallePago.observacion_pago}</p>}
             </div>
 
             {modalVerDetallePago.comprobante_url ? (
@@ -479,7 +472,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
         </div>
       )}
 
-      {/* MODAL GESTIONAR PAGO (SOLO JUNIOR / ADMIN) */}
+      {/* MODAL GESTIONAR PAGO */}
       {modalAtenderPago && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className={`${estilosTema.bgCard} rounded-3xl max-w-md w-full p-8 space-y-5 text-xs border shadow-2xl`}>
@@ -489,10 +482,10 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
             </div>
 
             <div className="space-y-4">
-              <div className={`p-4 rounded-xl border ${estilosTema.bgInput} space-y-1`}>
+              <div className={`p-4 rounded-xl border ${estilosTema.bgInput} space-y-2`}>
                 <p><strong>ODPE:</strong> {modalAtenderPago.odpe_nombre}</p>
                 <p><strong>Técnico:</strong> {modalAtenderPago.tecnico_nombre}</p>
-                <p><strong>Motivo:</strong> {modalAtenderPago.motivo_gasto}</p>
+                <p className="break-words"><strong>Motivo:</strong> {modalAtenderPago.motivo_gasto}</p>
                 <p className="text-emerald-700 font-bold text-sm">Monto: S/ {Number(modalAtenderPago.monto).toFixed(2)} ({modalAtenderPago.metodo_pago})</p>
               </div>
 
