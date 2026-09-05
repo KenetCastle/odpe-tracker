@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
 import * as XLSX from 'xlsx-js-style';
-import { DollarSign, ChevronLeft, ChevronRight, Search, Trash2, Eye } from 'lucide-react';
+import { DollarSign, ChevronLeft, ChevronRight, Search, Trash2, Eye, Archive, RotateCcw } from 'lucide-react';
 
 interface PagoTecnico {
   id: number;
@@ -34,6 +34,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   const elementosPorPagina = 20;
 
   const [busquedaPagoInput, setBusquedaPagoInput] = useState('');
+  const [vistaPapeleraPagos, setVistaPapeleraPagos] = useState(false);
 
   const [modalNuevoPago, setModalNuevoPago] = useState(false);
   const [modalAtenderPago, setModalAtenderPago] = useState<PagoTecnico | null>(null);
@@ -158,15 +159,27 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
     }
   };
 
-  const eliminarPagoDuplicado = async (id: number) => {
-    if (!esJuniorOAdmin) return toast.error('Solo Junior o Administradores pueden eliminar registros.');
-    if (!confirm('¿Estás seguro de eliminar este registro de pago de forma permanente?')) return;
+  const moverPapeleraPago = async (id: number, enviarAPapelera: boolean) => {
+    if (!esJuniorOAdmin) return toast.error('Solo Junior o Administradores pueden realizar esta acción.');
+    
+    const { error } = await supabase.from('pagos_tecnicos').update({ en_papelera: enviarAPapelera }).eq('id', id);
+    if (error) {
+      toast.error('Error al actualizar papelera: ' + error.message);
+    } else {
+      toast.info(enviarAPapelera ? 'Movido a la papelera' : 'Registro restaurado');
+      fetchPagosYPadron();
+    }
+  };
+
+  const eliminarDefinitivoPago = async (id: number) => {
+    if (perfil?.rol !== 'Admin') return toast.error('Solo el rol Administrador puede eliminar registros permanentemente.');
+    if (!confirm('¿Eliminar este registro de forma permanente?')) return;
 
     const { error } = await supabase.from('pagos_tecnicos').delete().eq('id', id);
     if (error) {
-      toast.error('Error al eliminar en base de datos: ' + error.message);
+      toast.error('Error al eliminar definitivamente: ' + error.message);
     } else {
-      toast.success('Registro eliminado correctamente');
+      toast.success('Registro eliminado definitivamente');
       fetchPagosYPadron();
     }
   };
@@ -174,7 +187,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   const exportarExcelPagos = () => {
     if (pagos.length === 0) return toast.error('No hay registros de pagos para exportar');
 
-    const datosFormateados = pagos.map(p => ({
+    const datosFormateados = pagos.filter(p => !p.en_papelera).map(p => ({
       ID: p.id,
       Fecha: new Date(p.created_at).toLocaleString('es-PE'),
       ODPE: p.odpe_nombre,
@@ -239,12 +252,15 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
     toast.success('¡Reporte de Pagos exportado a Excel con éxito!');
   };
 
-  const pagosFiltrados = pagos.filter(p => 
-    p.odpe_nombre.toLowerCase().includes(busquedaPagoInput.toLowerCase()) ||
-    p.tecnico_nombre.toLowerCase().includes(busquedaPagoInput.toLowerCase()) ||
-    p.tecnico_dni.includes(busquedaPagoInput) ||
-    p.motivo_gasto.toLowerCase().includes(busquedaPagoInput.toLowerCase())
-  );
+  const pagosFiltrados = pagos.filter(p => {
+    const coincidePapelera = vistaPapeleraPagos ? p.en_papelera : !p.en_papelera;
+    const coincideBusqueda = p.odpe_nombre.toLowerCase().includes(busquedaPagoInput.toLowerCase()) ||
+      p.tecnico_nombre.toLowerCase().includes(busquedaPagoInput.toLowerCase()) ||
+      p.tecnico_dni.includes(busquedaPagoInput) ||
+      p.motivo_gasto.toLowerCase().includes(busquedaPagoInput.toLowerCase());
+
+    return coincidePapelera && coincideBusqueda;
+  });
 
   const totalPaginasPagos = Math.ceil(pagosFiltrados.length / elementosPorPagina) || 1;
   const indexUltimoPago = paginaActualPagos * elementosPorPagina;
@@ -255,16 +271,28 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
       <Toaster position="bottom-right" richColors />
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-stone-300/40 pb-4">
         <div>
-          <h3 className="text-sm font-black uppercase text-amber-800">Control de Gastos y Reembolsos</h3>
+          <h3 className="text-sm font-black uppercase text-amber-800">
+            {vistaPapeleraPagos ? '🗑️ Papelera de Pagos' : 'Control de Gastos y Reembolsos'}
+          </h3>
           <p className={`text-xs mt-0.5 ${estilosTema.subtext}`}>Gestionado por Junior / Supervisores de Sede</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={exportarExcelPagos} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all flex items-center gap-2">
-            📊 Exportar Pagos Excel
+          <button 
+            onClick={() => setVistaPapeleraPagos(!vistaPapeleraPagos)} 
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${vistaPapeleraPagos ? 'bg-amber-200 text-amber-900 border-amber-400' : `${estilosTema.bgCard} border-stone-300`}`}
+          >
+            <Archive className="w-4 h-4" /> {vistaPapeleraPagos ? 'Ver Pagos Activos' : 'Ver Papelera'}
           </button>
-          <button onClick={() => setModalNuevoPago(true)} className="bg-amber-700 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all flex items-center gap-2">
-            + Registrar Nuevo Gasto
-          </button>
+          {!vistaPapeleraPagos && (
+            <>
+              <button onClick={exportarExcelPagos} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all flex items-center gap-2">
+                📊 Exportar Pagos Excel
+              </button>
+              <button onClick={() => setModalNuevoPago(true)} className="bg-amber-700 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all flex items-center gap-2">
+                + Registrar Nuevo Gasto
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -324,24 +352,40 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
                   <button onClick={() => setModalVerDetallePago(p)} className="bg-stone-300/60 hover:bg-stone-300 px-3 py-2 rounded-xl font-bold inline-flex items-center gap-1" title="Ver Detalles">
                     <Eye className="w-3.5 h-3.5" /> Ver
                   </button>
-                  
-                  <button 
-                    onClick={() => { 
-                      if (!esJuniorOAdmin) return toast.error('Solo Junior o Administradores pueden gestionar el estado de los pagos.');
-                      setModalAtenderPago(p); 
-                      setNuevoEstadoPago(p.estado_pago); 
-                      setObsPagoInput(p.observacion_pago || ''); 
-                    }} 
-                    className={`px-3 py-2 rounded-xl font-bold shadow-md ${esJuniorOAdmin ? estilosTema.accentPrimary : 'bg-stone-400 opacity-60 cursor-not-allowed text-white'}`}
-                    title={esJuniorOAdmin ? "Gestionar estado" : "Restringido solo para Junior"}
-                  >
-                    ✏️ Gestionar
-                  </button>
 
-                  {esJuniorOAdmin && (
-                    <button onClick={() => eliminarPagoDuplicado(p.id)} className="bg-red-900/20 hover:bg-red-900/40 text-red-700 px-2.5 py-2 rounded-xl font-bold border border-red-300 transition-all" title="Eliminar Registro">
-                      <Trash2 className="w-3.5 h-3.5 inline" />
-                    </button>
+                  {!vistaPapeleraPagos ? (
+                    <>
+                      <button 
+                        onClick={() => { 
+                          if (!esJuniorOAdmin) return toast.error('Solo Junior o Administradores pueden gestionar el estado de los pagos.');
+                          setModalAtenderPago(p); 
+                          setNuevoEstadoPago(p.estado_pago); 
+                          setObsPagoInput(p.observacion_pago || ''); 
+                        }} 
+                        className={`px-3 py-2 rounded-xl font-bold shadow-md ${esJuniorOAdmin ? estilosTema.accentPrimary : 'bg-stone-400 opacity-60 cursor-not-allowed text-white'}`}
+                      >
+                        ✏️ Gestionar
+                      </button>
+
+                      {esJuniorOAdmin && (
+                        <button onClick={() => moverPapeleraPago(p.id, true)} className="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-2 rounded-xl font-bold border border-amber-300 transition-all" title="Mover a Papelera">
+                          🗑️
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {esJuniorOAdmin && (
+                        <button onClick={() => moverPapeleraPago(p.id, false)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 px-3 py-2 rounded-xl font-bold border border-emerald-300 transition-all" title="Restaurar">
+                          <RotateCcw className="w-3.5 h-3.5 inline" /> Restaurar
+                        </button>
+                      )}
+                      {perfil?.rol === 'Admin' && (
+                        <button onClick={() => eliminarDefinitivoPago(p.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-xl font-bold transition-all" title="Eliminar Definitivo">
+                          ❌
+                        </button>
+                      )}
+                    </>
                   )}
                 </td>
               </tr>
