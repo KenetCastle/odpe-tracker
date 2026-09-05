@@ -53,7 +53,14 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   const [obsPagoInput, setObsPagoInput] = useState('');
 
   const listaMetodosPago = ['Yape', 'Plin', 'Depósito BCP', 'Depósito BBVA', 'Transferencia Interbancaria', 'Efectivo'];
-  const esJuniorOAdmin = perfil?.rol === 'Admin' || (perfil?.correo || '').toLowerCase().includes('junior');
+
+  // Validación de permisos: Es Admin (o Administrador) o su correo incluye 'junior'
+  const rolUsuario = (perfil?.rol || '').toLowerCase();
+  const correoUsuario = (perfil?.correo || '').toLowerCase();
+  const esJuniorOAdmin = 
+    rolUsuario.includes('admin') || 
+    rolUsuario.includes('administrador') || 
+    correoUsuario.includes('junior');
 
   const fetchPagosYPadron = async () => {
     const { data: resPagos } = await supabase.from('pagos_tecnicos').select('*').order('created_at', { ascending: false });
@@ -172,7 +179,9 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
   };
 
   const eliminarDefinitivoPago = async (id: number) => {
-    if (perfil?.rol !== 'Admin') return toast.error('Solo el rol Administrador puede eliminar registros permanentemente.');
+    if (!rolUsuario.includes('admin') && !rolUsuario.includes('administrador')) {
+      return toast.error('Solo el rol Administrador puede eliminar registros permanentemente.');
+    }
     if (!confirm('¿Eliminar este registro de forma permanente?')) return;
 
     const { error } = await supabase.from('pagos_tecnicos').delete().eq('id', id);
@@ -380,7 +389,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
                           <RotateCcw className="w-3.5 h-3.5 inline" /> Restaurar
                         </button>
                       )}
-                      {perfil?.rol === 'Admin' && (
+                      {(rolUsuario.includes('admin') || rolUsuario.includes('administrador')) && (
                         <button onClick={() => eliminarDefinitivoPago(p.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-xl font-bold transition-all" title="Eliminar Definitivo">
                           ❌
                         </button>
@@ -549,7 +558,7 @@ export default function SeccionPagos({ estilosTema, perfil }: SeccionPagosProps)
 
               <div className="flex gap-2 pt-2">
                 <button onClick={handleActualizarEstadoPago} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-lg text-xs">Guardar Cambios</button>
-                <button onClick={() => setModalAtenderPago(null)} className="w-full bg-stone-300/60 hover:bg-stone-300 text-stone-900 font-bold py-3.5 rounded-xl text-xs">Cancelar</button>
+                <button onClick={() => setModalAtenderPago(null)} className="w-full bg-stone-300/60 hover:bg-stone-300 text-stone-900 font-bold py-3.5 rounded-xl text-xs">Cancelar y Salir</button>
               </div>
             </div>
           </div>
