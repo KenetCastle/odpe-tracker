@@ -74,12 +74,65 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
     if (data) setMiHistorial(data);
   };
 
-  const subirImagen = async (file: File) => {
-    const fileExt = file.name.split('.').pop();
+  // FUNCIÓN PARA COMPRIMIR IMÁGENES AUTOMÁTICAMENTE Y AHORRAR ESPACIO EN SUPABASE
+  const comprimirImagen = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Máximo ancho o alto de 1200px para nitidez perfecta sin sobrepasar espacio
+          const maxDim = 1200;
+          if (width > height) {
+            if (width > maxDim) {
+              height *= maxDim / width;
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const compressedFile = new File([blob], file.name, {
+                  type: 'image/jpeg',
+                  lastModified: Date.now(),
+                });
+                resolve(compressedFile);
+              } else {
+                resolve(file); // Si ocurre un fallo, retorna el archivo original
+              }
+            },
+            'image/jpeg',
+            0.8 // 80% de calidad visual óptima y ligera
+          );
+        };
+      };
+    });
+  };
+
+  const subirImagenComprimida = async (file: File) => {
+    const fileComprimido = await comprimirImagen(file);
+    const fileExt = 'jpg';
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
     const filePath = `campo/${fileName}`;
 
-    const { error } = await supabase.storage.from('incidencias-fotos').upload(filePath, file);
+    const { error } = await supabase.storage.from('incidencias-fotos').upload(filePath, fileComprimido);
     if (error) throw error;
 
     const { data } = supabase.storage.from('incidencias-fotos').getPublicUrl(filePath);
@@ -95,8 +148,8 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
       let urlFoto1 = '';
       let urlFoto2 = '';
 
-      if (archivoFoto1) urlFoto1 = await subirImagen(archivoFoto1);
-      if (archivoFoto2) urlFoto2 = await subirImagen(archivoFoto2);
+      if (archivoFoto1) urlFoto1 = await subirImagenComprimida(archivoFoto1);
+      if (archivoFoto2) urlFoto2 = await subirImagenComprimida(archivoFoto2);
 
       const nombreEquipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoInput.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
 
@@ -125,7 +178,7 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
       if (error) {
         alert('Error al registrar incidencia: ' + error.message);
       } else {
-        alert('✅ Incidencia registrada con imágenes enviadas con éxito.');
+        alert('✅ Incidencia registrada y fotos optimizadas enviadas con éxito.');
         setMarca('');
         setModelo('');
         setSerie('');
@@ -266,9 +319,9 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
                 <textarea rows={3} required placeholder="Explica qué síntoma o falla presenta el equipo..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white" />
               </div>
 
-              {/* CARGA DE FOTOS (MÁXIMO 2) */}
+              {/* CARGA DE FOTOS CON COMPRESIÓN AUTOMÁTICA */}
               <div className="p-3 bg-slate-900/80 border border-slate-700 rounded-xl space-y-2">
-                <label className="block text-blue-400 font-bold uppercase text-[10px]">📷 Adjuntar Fotos del Equipo (Máximo 2)</label>
+                <label className="block text-blue-400 font-bold uppercase text-[10px]">📷 Adjuntar Fotos (Optimización Automática)</label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <span className="block text-[10px] text-slate-400 mb-1">Foto 1 (Falla / Serie):</span>
@@ -282,7 +335,7 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
               </div>
 
               <button type="submit" disabled={enviando} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg">
-                {enviando ? 'Subiendo imágenes y enviando...' : 'Enviar Reporte de Incidencia'}
+                {enviando ? 'Optimizando imágenes y enviando...' : 'Enviar Reporte de Incidencia'}
               </button>
             </form>
           </div>
