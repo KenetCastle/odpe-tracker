@@ -191,29 +191,34 @@ export default function Home() {
     else setDatosTecnicoExiste(false);
   };
 
-  // --- FUNCIÓN DE PERFIL CORREGIDA Y ROBUSTA ---
+// --- FUNCIÓN DE PERFIL DEFINITIVA (BÚSQUEDA POR CORREO) ---
   const cargarPerfil = async (userId: string, email: string) => {
     try {
-      // 1. Intentamos buscar primero por el ID de Auth
-      let { data, error } = await supabase.from('perfiles').select('nombre, rol, correo').eq('id', userId).maybeSingle();
-      
-      // 2. Si no encuentra por ID, buscamos por correo electrónico (que es más seguro si la tabla se llenó manual)
+      // 1. Buscamos primero por el correo exacto (es más confiable si se creó manual en la BD)
+      let { data, error } = await supabase
+        .from('perfiles')
+        .select('nombre, rol, correo')
+        .eq('correo', email)
+        .maybeSingle();
+
+      // 2. Si no lo encuentra por correo, intentamos por el ID de Auth
       if (!data) {
-        const resp = await supabase.from('perfiles').select('nombre, rol, correo').eq('correo', email).maybeSingle();
+        const resp = await supabase
+          .from('perfiles')
+          .select('nombre, rol, correo')
+          .eq('id', userId)
+          .maybeSingle();
         data = resp.data;
       }
 
       if (data && data.rol) {
-        // Normalizamos el rol para que maneje sin problemas variaciones de mayúsculas/minúsculas o nombres
-        let rolBD = data.rol.trim();
-        
         setPerfil({
           correo: data.correo || email,
           nombre: data.nombre || 'Usuario',
-          rol: rolBD, 
+          rol: data.rol.trim(), // Lee exactamente lo que dice Supabase ('Administrador', 'Admin', etc.)
         });
       } else {
-        // Respaldo inteligente si el usuario de verdad no existe en la tabla perfiles
+        // Respaldo de seguridad si de plano el correo no está registrado en la tabla perfiles
         const esJunior = email.toLowerCase().includes('junior');
         const rolPorDefecto = esJunior ? 'Junior' : 'Supervisor';
         
