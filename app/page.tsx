@@ -54,7 +54,7 @@ interface Incidencia {
 interface PerfilUsuario {
   correo: string;
   nombre: string;
-  rol: 'Admin' | 'Supervisor' | 'Visitante';
+  rol: string; // <-- Ampliado para aceptar exactamente lo que diga Supabase (Administrador, Supervisor, Junior, etc)
 }
 
 type Tema = 'calido-claro' | 'calido-oscuro' | 'corporativo-limpio';
@@ -191,6 +191,7 @@ export default function Home() {
     else setDatosTecnicoExiste(false);
   };
 
+  // --- FUNCIÓN DE PERFIL CORREGIDA ---
   const cargarPerfil = async (userId: string, email: string) => {
     try {
       let { data } = await supabase.from('perfiles').select('nombre, rol, correo').eq('id', userId).maybeSingle();
@@ -202,15 +203,20 @@ export default function Home() {
       if (data && data.rol) {
         setPerfil({
           correo: data.correo || email,
-          nombre: data.nombre || (data.rol === 'Admin' ? 'Administrador' : 'Usuario'),
-          rol: data.rol as 'Admin' | 'Supervisor' | 'Visitante',
+          nombre: data.nombre || 'Usuario',
+          rol: data.rol, // Lee exactamente el rol de la base de datos sin forzarlo
         });
       } else {
-        await supabase.from('perfiles').upsert([{ id: userId, correo: email, nombre: 'Administrador', rol: 'Admin' }]);
-        setPerfil({ correo: email, nombre: 'Administrador', rol: 'Admin' });
+        // Respaldo inteligente y SEGURO por si no encuentra el perfil (NUNCA Admin por defecto)
+        const esJunior = email.toLowerCase().includes('junior');
+        const rolPorDefecto = esJunior ? 'Junior' : 'Supervisor';
+        
+        await supabase.from('perfiles').upsert([{ id: userId, correo: email, nombre: 'Usuario', rol: rolPorDefecto }]);
+        setPerfil({ correo: email, nombre: 'Usuario', rol: rolPorDefecto });
       }
     } catch (err) {
-      setPerfil({ correo: email, nombre: 'Administrador', rol: 'Admin' });
+      // En caso de falla de red, asignamos rol de Supervisor por seguridad
+      setPerfil({ correo: email, nombre: 'Usuario', rol: 'Supervisor' });
     }
   };
 
@@ -344,7 +350,7 @@ export default function Home() {
   };
 
   const eliminarDefinitivo = async (id: number) => {
-    if (perfil?.rol !== 'Admin') return toast.error('Solo el rol Administrador puede eliminar registros.');
+    if (perfil?.rol !== 'Admin' && perfil?.rol !== 'Administrador') return toast.error('Solo el rol Administrador puede eliminar registros de forma permanente.');
     if (confirm('¿Eliminar registro de forma permanente?')) {
       await supabase.from('incidencias').delete().eq('id', id);
       toast.success('Registro eliminado definitivamente');
@@ -1133,7 +1139,7 @@ export default function Home() {
                                 </>
                               )}
 
-                              {perfil?.rol === 'Admin' && vistaPapelera && (
+                              {(perfil?.rol === 'Admin' || perfil?.rol === 'Administrador') && vistaPapelera && (
                                 <button onClick={() => eliminarDefinitivo(item.id)} className="bg-red-600 text-white px-3 py-2 rounded-xl font-bold">❌</button>
                               )}
                             </td>
