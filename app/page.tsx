@@ -361,12 +361,6 @@ export default function Home() {
     setDescripcion(item.descripcion);
   };
 
-  const copiarResumen = (item: Incidencia) => {
-    const texto = `[INCIDENCIA #${item.id}] ${item.odpe_nombre} | Equipo: ${item.equipo_afectado} (${item.marca || 'S/M'} - Serie: ${item.serie || 'S/S'}) | Estado: ${item.estado} | Delegado a: ${item.supervisor_asignado || 'Sin asignar'}`;
-    navigator.clipboard.writeText(texto);
-    toast.success('Resumen copiado al portapapeles');
-  };
-
   const limpiarFormulario = () => {
     setEditandoId(null);
     setMarca('');
@@ -653,7 +647,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* PESTAÑA SUPERVISORES (NUEVO) */}
+        {/* PESTAÑA SUPERVISORES */}
         {seccionActiva === 'supervisores' && (
           <div className="space-y-6">
             {!supervisorDetalleSeleccionado ? (
@@ -1031,18 +1025,17 @@ export default function Home() {
                             </span>
                           </td>
                           <td className="py-3.5 px-3 text-right space-x-1.5">
-                            <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-2 py-1 rounded font-bold">🔍</button>
-                            <button onClick={() => copiarResumen(item)} title="Copiar" className="bg-stone-300/60 hover:bg-stone-300 px-2 py-1 rounded font-bold">📋</button>
+                            <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-2.5 py-1.5 rounded-lg font-bold">🔍</button>
 
                             {perfil?.rol !== 'Visitante' && !vistaPapelera && (
                               <>
-                                <button onClick={() => cargarParaEditar(item)} className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-1 rounded font-bold">✏️</button>
-                                <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-1 rounded font-bold">🗑️</button>
+                                <button onClick={() => cargarParaEditar(item)} className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-lg font-bold">✏️</button>
+                                <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-lg font-bold">🗑️</button>
                               </>
                             )}
 
                             {perfil?.rol === 'Admin' && vistaPapelera && (
-                              <button onClick={() => eliminarDefinitivo(item.id)} className="bg-red-600 text-white px-2 py-1 rounded font-bold">❌</button>
+                              <button onClick={() => eliminarDefinitivo(item.id)} className="bg-red-600 text-white px-2.5 py-1.5 rounded-lg font-bold">❌</button>
                             )}
                           </td>
                         </tr>
@@ -1193,7 +1186,7 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2 border-b border-stone-300/40 pb-2 text-[11px]">
                 <p><strong>ODPE:</strong> <span className="text-amber-700 font-bold">{modalVer.odpe_nombre}</span></p>
                 <p><strong>Estado:</strong> <span className="font-bold text-emerald-600">{modalVer.estado}</span></p>
-                <p><strong>Delegado a:</strong> <span className="font-bold text-amber-700">{modalVer.supervisor_asignado || 'Sin delegar'}</span></p>
+                <p><strong>Creado por:</strong> <span className="font-semibold text-purple-700">{modalVer.creado_por || 'Sistema'}</span></p>
                 <p><strong>Fecha:</strong> {new Date(modalVer.created_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'medium' })}</p>
               </div>
 
@@ -1201,6 +1194,7 @@ export default function Home() {
                 <p><strong>Equipo:</strong> {modalVer.equipo_afectado} ({modalVer.marca || 'S/M'} - {modalVer.modelo || 'S/M'})</p>
                 <p><strong>N° Serie:</strong> <span className="font-mono">{modalVer.serie || 'N/A'}</span></p>
                 <p><strong>Supervisor de Sede:</strong> {modalVer.supervisor || 'N/A'}</p>
+                <p><strong>Delegado a:</strong> <span className="font-bold text-amber-700">{modalVer.supervisor_asignado || 'Sin delegar'}</span></p>
                 <p><strong>Técnico Responsable:</strong> {modalVer.tecnico_nombre || 'N/A'}</p>
                 <p><strong>DNI / Celular Técnico:</strong> <span className="font-mono">{modalVer.tecnico_dni || 'S/N'} / {modalVer.tecnico_celular || 'S/N'}</span></p>
                 <p><strong>Observaciones:</strong> {modalVer.descripcion || 'Sin observaciones'}</p>
@@ -1225,8 +1219,7 @@ export default function Home() {
               )}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => copiarResumen(modalVer)} className={`w-full font-bold py-2.5 rounded-xl shadow-lg ${estilosTema.accentPrimary}`}>Copiar Ficha</button>
-              <button onClick={() => setModalVer(null)} className="w-full bg-stone-300/60 text-stone-800 font-bold py-2.5 rounded-xl">Cerrar</button>
+              <button onClick={() => setModalVer(null)} className={`w-full font-bold py-2.5 rounded-xl shadow-lg ${estilosTema.accentPrimary}`}>Cerrar</button>
             </div>
           </div>
         </div>
