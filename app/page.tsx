@@ -1254,8 +1254,8 @@ export default function Home() {
           <div className={`${estilosTema.bgCard} p-10 rounded-2xl border shadow-sm space-y-5 text-center py-20 max-w-xl mx-auto`}>
             <BarChart3 className="w-14 h-14 text-emerald-600 mx-auto" />
             <h3 className="font-bold text-xl">Consolidado Oficial de Incidentes</h3>
-            <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte profesional en formato Excel (`.xlsx`) con cabeceras estilizadas, anchos adaptados y bordes limpios.</p>
-            <button onClick={exportarExcelProfesional} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Profesional</button>
+            <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte  en formato Excel (`.xlsx`)</p>
+            <button onClick={exportarExcelProfesional} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel </button>
           </div>
         )}
 
