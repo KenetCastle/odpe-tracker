@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import PortalTecnico from '@/app/components/PortalTecnico';
 import TablaTecnicos from '@/app/components/TablaTecnicos';
 import { Toaster, toast } from 'sonner';
+import * as XLSX from 'xlsx-js-style'; // <--- Usamos la librería con soporte de estilos
 import {
   LayoutDashboard,
   FileText,
@@ -374,35 +375,87 @@ export default function Home() {
     setEstado('Reportado');
   };
 
-  const exportarCSV = () => {
+  // FUNCIÓN PROFESIONAL DE EXPORTACIÓN A EXCEL CON DISEÑO
+  const exportarExcelProfesional = () => {
     if (incidencias.length === 0) return toast.error('No hay datos para exportar');
-    const sep = ';';
-    const columnas = ['ID', 'FECHA', 'ODPE', 'EQUIPO', 'MARCA', 'MODELO', 'SERIE', 'ESTADO', 'SUPERVISOR_ASIGNADO', 'TECNICO', 'CELULAR', 'CREADO_POR'];
-    const filas = incidenciasFiltradas.map(i => [
-      i.id,
-      new Date(i.created_at).toLocaleDateString(),
-      `"${i.odpe_nombre}"`,
-      `"${i.equipo_afectado}"`,
-      `"${i.marca || ''}"`,
-      `"${i.modelo || ''}"`,
-      `"${i.serie || ''}"`,
-      `"${i.estado}"`,
-      `"${i.supervisor_asignado || ''}"`,
-      `"${i.tecnico_nombre || ''}"`,
-      `"${i.tecnico_celular || ''}"`,
-      `"${i.creado_por || ''}"`
-    ].join(sep));
 
-    const csvContent = '\uFEFF' + [columnas.join(sep), ...filas].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Reporte_ODPE_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Reporte descargado');
+    const datosFormateados = incidencias.map(i => ({
+      ID: i.id,
+      Fecha: new Date(i.created_at).toLocaleString('es-PE'),
+      ODPE: i.odpe_nombre,
+      Equipo: i.equipo_afectado,
+      Marca: i.marca || 'S/M',
+      Modelo: i.modelo || 'S/M',
+      Serie: i.serie || 'S/S',
+      Estado: i.estado,
+      'Supervisor Asignado': i.supervisor_asignado || 'Sin delegar',
+      'Técnico Sede': i.tecnico_nombre || 'S/N',
+      Celular: i.tecnico_celular || 'S/N',
+      Observaciones: i.descripcion || 'Sin observaciones'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(datosFormateados);
+
+    // Estilos profesionales
+    const estiloHeader = {
+      font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '2C2825' } }, // Color oscuro elegante
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: '000000' } },
+        bottom: { style: 'thin', color: { rgb: '000000' } },
+        left: { style: 'thin', color: { rgb: '000000' } },
+        right: { style: 'thin', color: { rgb: '000000' } }
+      }
+    };
+
+    const estiloCeldas = {
+      font: { name: 'Calibri', sz: 10 },
+      alignment: { vertical: 'center', wrapText: true },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+      }
+    };
+
+    // Aplicar estilos a las cabeceras y celdas
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const headerCell = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (worksheet[headerCell]) worksheet[headerCell].s = estiloHeader;
+    }
+
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        if (worksheet[cellAddress]) worksheet[cellAddress].s = estiloCeldas;
+      }
+    }
+
+    // Auto-ajustar ancho de columnas
+    const colWidths = [
+      { wch: 6 },  // ID
+      { wch: 18 }, // Fecha
+      { wch: 25 }, // ODPE
+      { wch: 18 }, // Equipo
+      { wch: 12 }, // Marca
+      { wch: 12 }, // Modelo
+      { wch: 15 }, // Serie
+      { wch: 14 }, // Estado
+      { wch: 20 }, // Supervisor Asignado
+      { wch: 20 }, // Técnico Sede
+      { wch: 12 }, // Celular
+      { wch: 35 }  // Observaciones
+    ];
+    worksheet['!cols'] = colWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Consolidado ODPE');
+
+    XLSX.writeFile(workbook, `Consolidado_ODPE_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success('¡Reporte Excel profesional descargado con éxito!');
   };
 
   const odpesFiltradasPadron = listaPadron.filter(p =>
@@ -1084,12 +1137,13 @@ export default function Home() {
           <TablaTecnicos incidencias={incidencias} />
         )}
 
+        {/* PESTAÑA EXPORTAR EXCEL */}
         {seccionActiva === 'reportes' && (
           <div className={`${estilosTema.bgCard} p-8 rounded-2xl border shadow-sm space-y-4 text-center py-16 max-w-xl mx-auto`}>
             <BarChart3 className="w-12 h-12 text-emerald-600 mx-auto" />
             <h3 className="font-bold text-xl">Consolidado Oficial de Incidentes</h3>
-            <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte completo en formato CSV/Excel con las fechas, responsables y estados de cada ODPE.</p>
-            <button onClick={exportarCSV} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Completo</button>
+            <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte profesional en formato Excel (`.xlsx`) con cabeceras estilizadas, anchos adaptados y bordes limpios.</p>
+            <button onClick={exportarExcelProfesional} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Profesional</button>
           </div>
         )}
 
