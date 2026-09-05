@@ -191,41 +191,45 @@ export default function Home() {
     else setDatosTecnicoExiste(false);
   };
 
-// --- FUNCIÓN DE PERFIL DEFINITIVA (BÚSQUEDA POR CORREO) ---
+// --- FUNCIÓN DE PERFIL CON DEPURACIÓN VISUAL ---
   const cargarPerfil = async (userId: string, email: string) => {
     try {
-      // 1. Buscamos primero por el correo exacto (es más confiable si se creó manual en la BD)
+      console.log("Buscando perfil para ID:", userId, "o correo:", email);
+
+      // 1. Buscamos por ID de Supabase Auth (método principal y más seguro)
       let { data, error } = await supabase
         .from('perfiles')
         .select('nombre, rol, correo')
-        .eq('correo', email)
+        .eq('id', userId)
         .maybeSingle();
 
-      // 2. Si no lo encuentra por correo, intentamos por el ID de Auth
-      if (!data) {
+      // 2. Si hay error o no lo encuentra por ID, intentamos por correo
+      if (!data || error) {
         const resp = await supabase
           .from('perfiles')
           .select('nombre, rol, correo')
-          .eq('id', userId)
+          .eq('correo', email)
           .maybeSingle();
         data = resp.data;
       }
 
+      console.log("Datos de perfil encontrados en Supabase:", data);
+
       if (data && data.rol) {
         setPerfil({
           correo: data.correo || email,
-          nombre: data.nombre || 'Usuario',
-          rol: data.rol.trim(), // Lee exactamente lo que dice Supabase ('Administrador', 'Admin', etc.)
+          nombre: data.nombre || email.split('@')[0],
+          rol: data.rol.trim(), // Asignará 'Admin', 'Administrador', 'Supervisor', etc.
         });
       } else {
-        // Respaldo de seguridad si de plano el correo no está registrado en la tabla perfiles
+        console.warn("No se encontró el perfil en la tabla. Aplicando rol por defecto.");
         const esJunior = email.toLowerCase().includes('junior');
         const rolPorDefecto = esJunior ? 'Junior' : 'Supervisor';
         
-        await supabase.from('perfiles').upsert([{ id: userId, correo: email, nombre: email.split('@')[0], rol: rolPorDefecto }]);
         setPerfil({ correo: email, nombre: email.split('@')[0], rol: rolPorDefecto });
       }
     } catch (err) {
+      console.error("Error al cargar perfil:", err);
       setPerfil({ correo: email, nombre: 'Usuario', rol: 'Supervisor' });
     }
   };
