@@ -117,6 +117,7 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
   const enviarAPapelera = async (id: number) => {
     if (!confirm('¿Estás seguro de enviar este registro de asistencia a la papelera?')) return;
 
+    // Actualizamos en Supabase
     const { error } = await supabase
       .from('asistencias_soportes')
       .update({ en_papelera: true })
@@ -126,7 +127,8 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
       toast.error('Error al enviar a papelera: ' + error.message);
     } else {
       toast.success('Asistencia enviada a la papelera.');
-      fetchAsistenciasYPadron();
+      // Actualizamos el estado local instantáneamente para que desaparezca de la tabla
+      setAsistencias(prev => prev.filter(item => item.id !== id));
     }
   };
 
