@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Wrench, Send, ArrowLeft, CheckCircle2, ShieldCheck, LogOut, PlusCircle, History } from 'lucide-react';
+import { Wrench, Send, ArrowLeft, CheckCircle2, ShieldCheck, LogOut, PlusCircle, History, Clock, UserCheck } from 'lucide-react';
 
 interface DatosPadron {
   dni: string;
@@ -26,6 +26,9 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
   const [buscando, setBuscando] = useState(false);
   const [tecnicoAutenticado, setTecnicoAutenticado] = useState<DatosPadron | null>(null);
 
+  // Pestaña activa dentro del portal del técnico ('incidencia' o 'asistencia')
+  const [pestanaPortal, setPestanaPortal] = useState<'incidencia' | 'asistencia'>('incidencia');
+
   // Formulario de Equipo
   const [equipoSeleccionado, setEquipoSeleccionado] = useState('CPU');
   const [otroEquipoInput, setOtroEquipoInput] = useState('');
@@ -35,10 +38,16 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
   const [serie, setSerie] = useState('');
   const [descripcion, setDescripcion] = useState('');
   
-  // Archivos de Imagen
+  // Archivos de Imagen (Incidencias)
   const [archivoFoto1, setArchivoFoto1] = useState<File | null>(null);
   const [archivoFoto2, setArchivoFoto2] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
+
+  // Formulario de Asistencia
+  const [asistenciaObs, setAsistenciaObs] = useState('');
+  const [asistenciaFoto1, setAsistenciaFoto1] = useState<File | null>(null);
+  const [asistenciaFoto2, setAsistenciaFoto2] = useState<File | null>(null);
+  const [enviandoAsistencia, setEnviandoAsistencia] = useState(false);
 
   // Historial personal
   const [miHistorial, setMiHistorial] = useState<any[]>([]);
@@ -126,11 +135,10 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
     });
   };
 
-  const subirImagenComprimida = async (file: File) => {
+  const subirImagenComprimida = async (file: File, carpeta: string = 'campo') => {
     const fileComprimido = await comprimirImagen(file);
-    const fileExt = 'jpg';
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-    const filePath = `campo/${fileName}`;
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
+    const filePath = `${carpeta}/${fileName}`;
 
     const { error } = await supabase.storage.from('incidencias-fotos').upload(filePath, fileComprimido);
     if (error) throw error;
@@ -148,8 +156,8 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
       let urlFoto1 = '';
       let urlFoto2 = '';
 
-      if (archivoFoto1) urlFoto1 = await subirImagenComprimida(archivoFoto1);
-      if (archivoFoto2) urlFoto2 = await subirImagenComprimida(archivoFoto2);
+      if (archivoFoto1) urlFoto1 = await subirImagenComprimida(archivoFoto1, 'campo');
+      if (archivoFoto2) urlFoto2 = await subirImagenComprimida(archivoFoto2, 'campo');
 
       const nombreEquipoFinal = equipoSeleccionado === 'OTRO' ? (otroEquipoInput.trim().toUpperCase() || 'OTRO EQUIPO') : equipoSeleccionado;
 
@@ -194,6 +202,48 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
       alert('Error al subir archivos de imagen: ' + err.message);
     }
     setEnviando(false);
+  };
+
+  const handleMarcarAsistencia = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tecnicoAutenticado) return;
+    if (!asistenciaFoto1) {
+      return alert('Debes adjuntar al menos la Foto 1 como prueba de asistencia.');
+    }
+
+    setEnviandoAsistencia(true);
+    try {
+      let url1 = await subirImagenComprimida(asistenciaFoto1, 'asistencias');
+      let url2 = '';
+      if (asistenciaFoto2) {
+        url2 = await subirImagenComprimida(asistenciaFoto2, 'asistencias');
+      }
+
+      const payload = {
+        soporte_correo: `${tecnicoAutenticado.dni}@soporte.campo`,
+        soporte_nombre: tecnicoAutenticado.tecnico_nombre,
+        odpe_nombre: tecnicoAutenticado.odpe_nombre,
+        fecha_hora: new Date().toISOString(),
+        foto_1: url1,
+        foto_2: url2 || null,
+        observacion: asistenciaObs.trim() || null,
+        en_papelera: false
+      };
+
+      const { error } = await supabase.from('asistencias_soportes').insert([payload]);
+
+      if (error) {
+        alert('Error al registrar asistencia: ' + error.message);
+      } else {
+        alert('✅ ¡Asistencia marcada correctamente con hora y fotos de prueba!');
+        setAsistenciaObs('');
+        setAsistenciaFoto1(null);
+        setAsistenciaFoto2(null);
+      }
+    } catch (err: any) {
+      alert('Error al subir fotos de asistencia: ' + err.message);
+    }
+    setEnviandoAsistencia(false);
   };
 
   return (
@@ -259,90 +309,156 @@ export default function PortalTecnico({ onVolver, onIncidenciaCreada }: PortalTe
             </div>
           </div>
 
-          {/* FORMULARIO DE REGISTRO */}
-          <div className="bg-[#F3EFE0] border border-stone-300 p-6 rounded-3xl shadow-xl space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 border-b border-stone-300/50 pb-2.5 flex items-center gap-2">
-              <PlusCircle className="w-4 h-4 text-amber-700" /> Registrar Nueva Falla de Equipo
-            </h3>
-
-            <form onSubmit={handleSubmitIncidencia} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-stone-700 font-bold mb-1">Equipo Afectado</label>
-                  <select
-                    value={equipoSeleccionado}
-                    onChange={(e) => setEquipoSeleccionado(e.target.value)}
-                    className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 font-bold text-stone-900"
-                  >
-                    <option value="CPU">CPU</option>
-                    <option value="MONITOR">MONITOR</option>
-                    <option value="IMPRESORA">IMPRESORA</option>
-                    <option value="GRUPO ELECTROGENO">GRUPO ELECTRÓGENO</option>
-                    <option value="AIRE ACONDICIONADO">AIRE ACONDICIONADO</option>
-                    <option value="SWITCH/ROUTER">SWITCH / ROUTER</option>
-                    <option value="OTRO">⚠️ OTRO EQUIPO...</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-stone-700 font-bold mb-1">Tipo de Problema</label>
-                  <select
-                    value={tipoProblema}
-                    onChange={(e) => setTipoProblema(e.target.value)}
-                    className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 font-semibold text-stone-900"
-                  >
-                    <option value="Hardware">Hardware</option>
-                    <option value="Software">Software</option>
-                    <option value="Red">Red</option>
-                  </select>
-                </div>
-              </div>
-
-              {equipoSeleccionado === 'OTRO' && (
-                <div>
-                  <label className="block text-amber-800 font-bold mb-1">Escribe el Nombre del Equipo:</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. ESCÁNER / ESTABILIZADOR..."
-                    value={otroEquipoInput}
-                    onChange={(e) => setOtroEquipoInput(e.target.value)}
-                    className="w-full bg-amber-50 border border-amber-500 rounded-xl p-3 text-amber-900 uppercase font-bold text-xs"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-2">
-                <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs" />
-                <input type="text" placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} className="bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs" />
-                <input type="text" placeholder="N° Serie" value={serie} onChange={(e) => setSerie(e.target.value)} className="bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs font-mono" />
-              </div>
-
-              <div>
-                <label className="block text-stone-700 font-bold mb-1">Descripción Detallada</label>
-                <textarea rows={3} required placeholder="Explica qué síntoma o falla presenta el equipo..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs" />
-              </div>
-
-              {/* CARGA DE FOTOS CON COMPRESIÓN AUTOMÁTICA */}
-              <div className="p-3.5 bg-[#FFFDF7] border border-stone-300 rounded-2xl space-y-2">
-                <label className="block text-amber-800 font-bold uppercase text-[11px]">📷 Adjuntar Fotos (Optimización Automática)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-[10px] text-stone-600 mb-1">Foto 1 (Falla / Serie):</span>
-                    <input type="file" accept="image/*" onChange={(e) => setArchivoFoto1(e.target.files?.[0] || null)} className="text-[10px] text-stone-700 w-full" />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] text-stone-600 mb-1">Foto 2 (Opcional):</span>
-                    <input type="file" accept="image/*" onChange={(e) => setArchivoFoto2(e.target.files?.[0] || null)} className="text-[10px] text-stone-700 w-full" />
-                  </div>
-                </div>
-              </div>
-
-              <button type="submit" disabled={enviando} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg text-xs flex items-center justify-center gap-2">
-                <Send className="w-4 h-4" /> {enviando ? 'Optimizando imágenes y enviando...' : 'Enviar Reporte de Incidencia'}
-              </button>
-            </form>
+          {/* SELECTOR DE PESTAÑAS (INCIDENCIAS VS ASISTENCIA) */}
+          <div className="grid grid-cols-2 gap-2 bg-[#F3EFE0] p-1.5 rounded-2xl border border-stone-300 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setPestanaPortal('incidencia')}
+              className={`py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
+                pestanaPortal === 'incidencia' ? 'bg-amber-700 text-white shadow-md' : 'text-stone-700 hover:bg-stone-300/40'
+              }`}
+            >
+              <Wrench className="w-4 h-4" /> Reportar Incidencia
+            </button>
+            <button
+              type="button"
+              onClick={() => setPestanaPortal('asistencia')}
+              className={`py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
+                pestanaPortal === 'asistencia' ? 'bg-emerald-700 text-white shadow-md' : 'text-stone-700 hover:bg-stone-300/40'
+              }`}
+            >
+              <UserCheck className="w-4 h-4" /> Marcar Asistencia
+            </button>
           </div>
+
+          {/* FORMULARIO DE INCIDENCIA */}
+          {pestanaPortal === 'incidencia' && (
+            <div className="bg-[#F3EFE0] border border-stone-300 p-6 rounded-3xl shadow-xl space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 border-b border-stone-300/50 pb-2.5 flex items-center gap-2">
+                <PlusCircle className="w-4 h-4 text-amber-700" /> Registrar Nueva Falla de Equipo
+              </h3>
+
+              <form onSubmit={handleSubmitIncidencia} className="space-y-3.5 text-xs">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Equipo Afectado</label>
+                    <select
+                      value={equipoSeleccionado}
+                      onChange={(e) => setEquipoSeleccionado(e.target.value)}
+                      className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 font-bold text-stone-900"
+                    >
+                      <option value="CPU">CPU</option>
+                      <option value="MONITOR">MONITOR</option>
+                      <option value="IMPRESORA">IMPRESORA</option>
+                      <option value="GRUPO ELECTROGENO">GRUPO ELECTRÓGENO</option>
+                      <option value="AIRE ACONDICIONADO">AIRE ACONDICIONADO</option>
+                      <option value="SWITCH/ROUTER">SWITCH / ROUTER</option>
+                      <option value="OTRO">⚠️ OTRO EQUIPO...</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Tipo de Problema</label>
+                    <select
+                      value={tipoProblema}
+                      onChange={(e) => setTipoProblema(e.target.value)}
+                      className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 font-semibold text-stone-900"
+                    >
+                      <option value="Hardware">Hardware</option>
+                      <option value="Software">Software</option>
+                      <option value="Red">Red</option>
+                    </select>
+                  </div>
+                </div>
+
+                {equipoSeleccionado === 'OTRO' && (
+                  <div>
+                    <label className="block text-amber-800 font-bold mb-1">Escribe el Nombre del Equipo:</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej. ESCÁNER / ESTABILIZADOR..."
+                      value={otroEquipoInput}
+                      onChange={(e) => setOtroEquipoInput(e.target.value)}
+                      className="w-full bg-amber-50 border border-amber-500 rounded-xl p-3 text-amber-900 uppercase font-bold text-xs"
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-2">
+                  <input type="text" placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} className="bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs" />
+                  <input type="text" placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} className="bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs" />
+                  <input type="text" placeholder="N° Serie" value={serie} onChange={(e) => setSerie(e.target.value)} className="bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs font-mono" />
+                </div>
+
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1">Descripción Detallada</label>
+                  <textarea rows={3} required placeholder="Explica qué síntoma o falla presenta el equipo..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs" />
+                </div>
+
+                {/* CARGA DE FOTOS CON COMPRESIÓN AUTOMÁTICA */}
+                <div className="p-3.5 bg-[#FFFDF7] border border-stone-300 rounded-2xl space-y-2">
+                  <label className="block text-amber-800 font-bold uppercase text-[11px]">📷 Adjuntar Fotos (Optimización Automática)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="block text-[10px] text-stone-600 mb-1">Foto 1 (Falla / Serie):</span>
+                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto1(e.target.files?.[0] || null)} className="text-[10px] text-stone-700 w-full" />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-stone-600 mb-1">Foto 2 (Opcional):</span>
+                      <input type="file" accept="image/*" onChange={(e) => setArchivoFoto2(e.target.files?.[0] || null)} className="text-[10px] text-stone-700 w-full" />
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" disabled={enviando} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg text-xs flex items-center justify-center gap-2">
+                  <Send className="w-4 h-4" /> {enviando ? 'Optimizando imágenes y enviando...' : 'Enviar Reporte de Incidencia'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* FORMULARIO DE ASISTENCIA */}
+          {pestanaPortal === 'asistencia' && (
+            <div className="bg-[#F3EFE0] border border-stone-300 p-6 rounded-3xl shadow-xl space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800 border-b border-stone-300/50 pb-2.5 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-emerald-700" /> Registro Diario de Asistencia
+              </h3>
+
+              <form onSubmit={handleMarcarAsistencia} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1 uppercase text-[11px]">Hora Actual del Sistema:</label>
+                  <div className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 font-mono font-bold flex items-center gap-2 text-stone-900">
+                    <Clock className="w-4 h-4 text-emerald-700" />
+                    {new Date().toLocaleString('es-PE')}
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-[#FFFDF7] border border-stone-300 rounded-2xl space-y-2">
+                  <label className="block text-emerald-800 font-bold uppercase text-[11px]">📷 Fotos de Prueba de Ingreso (Optimización Automática)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="block text-[10px] text-stone-600 mb-1">Foto 1 (Obligatoria):</span>
+                      <input type="file" accept="image/*" required onChange={(e) => setAsistenciaFoto1(e.target.files?.[0] || null)} className="text-[10px] text-stone-700 w-full" />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-stone-600 mb-1">Foto 2 (Opcional):</span>
+                      <input type="file" accept="image/*" onChange={(e) => setAsistenciaFoto2(e.target.files?.[0] || null)} className="text-[10px] text-stone-700 w-full" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-stone-700 font-bold mb-1 uppercase text-[11px]">Observaciones / Comentarios:</label>
+                  <textarea rows={2} placeholder="Ej. Ingreso puntual a sede, equipos listos..." value={asistenciaObs} onChange={(e) => setAsistenciaObs(e.target.value)} className="w-full bg-[#FFFDF7] border border-stone-300 rounded-xl p-3 text-xs resize-none" />
+                </div>
+
+                <button type="submit" disabled={enviandoAsistencia} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg text-xs flex items-center justify-center gap-2">
+                  <UserCheck className="w-4 h-4" /> {enviandoAsistencia ? 'Procesando asistencia...' : 'Marcar Mi Asistencia Ahora'}
+                </button>
+              </form>
+            </div>
+          )}
 
           {/* HISTORIAL PERSONAL */}
           <div className="bg-[#F3EFE0] border border-stone-300 p-6 rounded-3xl shadow-xl space-y-3">
