@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
 import * as XLSX from 'xlsx-js-style';
-import { UserCheck, Clock, FileSpreadsheet, Search, Trash2, Eye, Image as ImageIcon, Archive } from 'lucide-react';
+import { UserCheck, Clock, FileSpreadsheet, Search, Trash2, Eye, Image as ImageIcon } from 'lucide-react';
 
 interface AsistenciaRegistro {
   id: number;
@@ -133,29 +133,82 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
   const exportarReporteAsistencias = () => {
     if (asistencias.length === 0) return toast.error('No hay registros de asistencia para exportar');
 
-    const datosFormateados = asistencias.map(a => ({
-      ID: a.id,
-      Fecha: new Date(a.fecha_hora).toLocaleDateString('es-PE'),
-      Hora: new Date(a.fecha_hora).toLocaleTimeString('es-PE'),
-      ODPE: a.odpe_nombre,
-      'Soporte Nombre': a.soporte_nombre,
-      'Correo Electrónico': a.soporte_correo,
-      Observaciones: a.observacion || 'Ninguna'
-    }));
+    // Mapeamos los datos cruzando con el padrón para obtener DNI y Celular reales
+    const datosFormateados = asistencias.map(a => {
+      const matchPadron = listaPadron.find(p => p.odpe_nombre === a.odpe_nombre || p.tecnico_nombre === a.soporte_nombre);
+      return {
+        ID: a.id,
+        Fecha: new Date(a.fecha_hora).toLocaleDateString('es-PE'),
+        Hora: new Date(a.fecha_hora).toLocaleTimeString('es-PE'),
+        ODPE: a.odpe_nombre,
+        'Técnico / Soporte': a.soporte_nombre,
+        DNI: matchPadron?.dni || 'S/N',
+        Celular: matchPadron?.tecnico_celular || 'S/N',
+        Observaciones: a.observacion || 'Ninguna'
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(datosFormateados);
+
+    // Estilos profesionales idénticos a tus otros reportes
+    const estiloHeader = {
+      font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '2C2825' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: '000000' } },
+        bottom: { style: 'thin', color: { rgb: '000000' } },
+        left: { style: 'thin', color: { rgb: '000000' } },
+        right: { style: 'thin', color: { rgb: '000000' } }
+      }
+    };
+
+    const estiloCeldas = {
+      font: { name: 'Calibri', sz: 10 },
+      alignment: { vertical: 'center', wrapText: true },
+      border: {
+        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
+        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
+      }
+    };
+
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const headerCell = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (worksheet[headerCell]) worksheet[headerCell].s = estiloHeader;
+    }
+
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        if (worksheet[cellAddress]) worksheet[cellAddress].s = estiloCeldas;
+      }
+    }
+
+    // Ancho de columnas ordenado y espaciado
+    worksheet['!cols'] = [
+      { wch: 6 },  // ID
+      { wch: 12 }, // Fecha
+      { wch: 12 }, // Hora
+      { wch: 25 }, // ODPE
+      { wch: 25 }, // Soporte
+      { wch: 14 }, // DNI
+      { wch: 14 }, // Celular
+      { wch: 30 }  // Observaciones
+    ];
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte Asistencias');
 
     XLSX.writeFile(workbook, `Reporte_Asistencias_Soportes_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success('¡Reporte de asistencias exportado a Excel con éxito!');
+    toast.success('¡Reporte de asistencias profesional exportado con éxito!');
   };
 
-  // Filtrado por buscador
   const asistenciasFiltradas = asistencias.filter(a => 
     a.soporte_nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    a.odpe_nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    a.soporte_correo.toLowerCase().includes(busqueda.toLowerCase())
+    a.odpe_nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
   return (
@@ -175,7 +228,7 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
             onClick={exportarReporteAsistencias} 
             className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all flex items-center gap-2"
           >
-            <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+            <FileSpreadsheet className="w-4 h-4" /> Exportar Excel Profesional
           </button>
         </div>
 
@@ -243,14 +296,13 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
         </form>
       </div>
 
-      {/* HISTORIAL / TABLA MEJORADA CON BUSCADOR */}
+      {/* HISTORIAL / TABLA CON BUSCADOR */}
       <div className={`${estilosTema.bgCard} p-6 rounded-3xl border shadow-sm space-y-4`}>
         <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-b border-stone-300/40 pb-4">
           <h4 className="font-bold text-xs uppercase tracking-wide text-amber-800">
             Historial de Asistencias Registradas ({asistenciasFiltradas.length})
           </h4>
           
-          {/* BUSCADOR (LUPITA) */}
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-3 w-4 h-4 text-stone-500" />
             <input
@@ -286,7 +338,6 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
                     </td>
                     <td className="py-3.5 px-3">
                       <p className="font-bold text-stone-900">{a.soporte_nombre}</p>
-                      <p className="text-[10px] text-stone-500 font-mono">{a.soporte_correo}</p>
                     </td>
                     <td className="py-3.5 px-3">
                       <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-full text-[10px] font-bold">
@@ -352,7 +403,7 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
 
             <div className="space-y-2.5">
               <p><strong>Fecha y Hora:</strong> <span className="font-mono">{new Date(asistenciaSeleccionada.fecha_hora).toLocaleString('es-PE')}</span></p>
-              <p><strong>Soporte:</strong> {asistenciaSeleccionada.soporte_nombre} ({asistenciaSeleccionada.soporte_correo})</p>
+              <p><strong>Soporte / Técnico:</strong> {asistenciaSeleccionada.soporte_nombre}</p>
               <p><strong>ODPE:</strong> {asistenciaSeleccionada.odpe_nombre}</p>
               <p><strong>Observaciones:</strong> {asistenciaSeleccionada.observacion || 'Ninguna'}</p>
 
