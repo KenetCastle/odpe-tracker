@@ -6,6 +6,7 @@ import PortalTecnico from '@/app/components/PortalTecnico';
 import SeccionPagos from '@/app/components/SeccionPagos';
 import { Toaster, toast } from 'sonner';
 import * as XLSX from 'xlsx-js-style';
+import SeccionAsistencia from '@/app/components/SeccionAsistencia';
 import {
   LayoutDashboard,
   FileText,
@@ -70,7 +71,7 @@ export default function Home() {
   const [tema, setTema] = useState<Tema>('calido-claro');
 
   const [modoReportePublico, setModoReportePublico] = useState(false);
-  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'pagos' | 'odpes' | 'supervisores' | 'reportes' | 'historial'>('incidentes');
+  const [seccionActiva, setSeccionActiva] = useState<'dashboard' | 'incidentes' | 'soportes' | 'pagos' | 'odpes' | 'supervisores' | 'reportes' | 'historial' | 'asistencia'>('incidentes');
 
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -615,6 +616,10 @@ export default function Home() {
               <span className="flex items-center gap-3"><Wrench className="w-4 h-4" /> Reportes Soportes</span>
               <span className="bg-emerald-950/80 text-[10px] px-2 py-0.5 rounded-full text-emerald-300 border border-emerald-700/60 font-bold">Campo</span>
             </button>
+            <button onClick={() => setSeccionActiva('asistencia')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-xs ${seccionActiva === 'asistencia' ? 'bg-amber-700 text-white' : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
+              <span className="flex items-center gap-3"><UserCheck className="w-4 h-4" /> Control de Asistencia</span>
+              <span className="bg-amber-950/80 text-[10px] px-2 py-0.5 rounded-full text-amber-300 border border-amber-700/60 font-bold">Soportes</span>
+            </button>
             <button onClick={() => setSeccionActiva('pagos')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-xs ${seccionActiva === 'pagos' ? 'bg-amber-600 text-white' : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <span className="flex items-center gap-3"><DollarSign className="w-4 h-4" /> Pagos y Reembolsos</span>
               <span className="bg-amber-950/80 text-[10px] px-2 py-0.5 rounded-full text-amber-300 border border-amber-700/60 font-bold">Junior</span>
@@ -729,6 +734,10 @@ export default function Home() {
         {/* COMPONENTE MODULARIZADO DE PAGOS */}
         {seccionActiva === 'pagos' && (
           <SeccionPagos estilosTema={estilosTema} perfil={perfil} />
+        )}
+        {/* PESTAÑA ASISTENCIA SOPORTES */}
+        {seccionActiva === 'asistencia' && (
+          <SeccionAsistencia estilosTema={estilosTema} perfil={perfil} />
         )}
 
         {/* PESTAÑA SUPERVISORES */}
