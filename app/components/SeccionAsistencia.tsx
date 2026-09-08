@@ -135,7 +135,7 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
   const exportarReporteAsistencias = () => {
     if (asistencias.length === 0) return toast.error('No hay registros de asistencia para exportar');
 
-    // Mapeamos los datos cruzando con el padrón para obtener DNI y Celular reales
+    // Mapeamos los datos cruzando con el padrón para obtener Supervisor, DNI y Celular reales
     const datosFormateados = asistencias.map(a => {
       const matchPadron = listaPadron.find(p => p.odpe_nombre === a.odpe_nombre || p.tecnico_nombre === a.soporte_nombre);
       return {
@@ -143,6 +143,7 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
         Fecha: new Date(a.fecha_hora).toLocaleDateString('es-PE'),
         Hora: new Date(a.fecha_hora).toLocaleTimeString('es-PE'),
         ODPE: a.odpe_nombre,
+        Supervisor: matchPadron?.supervisor_nombre || 'S/N', // <-- NUEVA COLUMNA DE SUPERVISOR
         'Técnico / Soporte': a.soporte_nombre,
         DNI: matchPadron?.dni || 'S/N',
         Celular: matchPadron?.tecnico_celular || 'S/N',
@@ -189,12 +190,13 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
       }
     }
 
-    // Ancho de columnas ordenado y espaciado
+    // Ancho de columnas ordenado y espaciado (incluyendo el Supervisor)
     worksheet['!cols'] = [
       { wch: 6 },  // ID
       { wch: 12 }, // Fecha
       { wch: 12 }, // Hora
       { wch: 25 }, // ODPE
+      { wch: 22 }, // Supervisor
       { wch: 25 }, // Soporte
       { wch: 14 }, // DNI
       { wch: 14 }, // Celular
@@ -414,7 +416,7 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
                 <div className="grid grid-cols-2 gap-2">
                   {asistenciaSeleccionada.foto_1 ? (
                     <a href={asistenciaSeleccionada.foto_1} target="_blank" rel="noopener noreferrer" className="block border rounded-xl overflow-hidden shadow-sm hover:opacity-90">
-                      <img src={asistenciaSeleccionada.foto_1} alt="Evidencia 1" className="w-full h-28 object-cover" />
+                      <img src={asJsonImage(asistenciaSeleccionada.foto_1)} alt="Evidencia 1" className="w-full h-28 object-cover" />
                       <span className="block text-center bg-stone-100 py-1 text-[10px] font-bold">Ver Foto 1 ↗</span>
                     </a>
                   ) : <p className="text-stone-400">Sin foto 1</p>}
