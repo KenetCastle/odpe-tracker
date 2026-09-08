@@ -339,8 +339,11 @@ export default function Home() {
     if (!modalEditarSoporte) return;
     setGuardandoSoporte(true);
 
+    // Obtenemos el nombre del usuario logueado actualmente
+    const autorActualizacion = perfil?.nombre || perfil?.correo || 'Usuario';
+
     const observacionActualizada = nuevasObsSoporte.trim()
-      ? `${modalEditarSoporte.descripcion}\n\n[ACTUALIZACIÓN ATENCIÓN]: ${nuevasObsSoporte.trim()}`
+      ? `${modalEditarSoporte.descripcion}\n\n[ACTUALIZACIÓN ATENCIÓN (${autorActualizacion})]: ${nuevasObsSoporte.trim()}`
       : modalEditarSoporte.descripcion;
 
     const { error } = await supabase.from('incidencias').update({

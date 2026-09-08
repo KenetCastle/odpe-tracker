@@ -416,7 +416,7 @@ export default function SeccionAsistencia({ estilosTema, perfil }: SeccionAsiste
                 <div className="grid grid-cols-2 gap-2">
                   {asistenciaSeleccionada.foto_1 ? (
                     <a href={asistenciaSeleccionada.foto_1} target="_blank" rel="noopener noreferrer" className="block border rounded-xl overflow-hidden shadow-sm hover:opacity-90">
-                      <img src={asJsonImage(asistenciaSeleccionada.foto_1)} alt="Evidencia 1" className="w-full h-28 object-cover" />
+                      <img src={asistenciaSeleccionada.foto_1} alt="Evidencia 1" className="w-full h-28 object-cover" />
                       <span className="block text-center bg-stone-100 py-1 text-[10px] font-bold">Ver Foto 1 ↗</span>
                     </a>
                   ) : <p className="text-stone-400">Sin foto 1</p>}
