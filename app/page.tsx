@@ -97,14 +97,15 @@ export default function Home() {
   const [busquedaDirectorioInput, setBusquedaDirectorioInput] = useState('');
   const [listaSupervisores, setListaSupervisores] = useState<string[]>([]);
   const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'IMPRESORA', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO', 'SWITCH/ROUTER']);
-  const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto']);
+  const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto','Alfil','Raul Osorio','Raul Tapia']);
 
   const [modalCatalogos, setModalCatalogos] = useState<'supervisor' | 'equipo' | null>(null);
   const [inputNuevoCatalog, setInputNuevoCatalog] = useState('');
 
-  // Filtros
+ // Filtros
   const [filtroEstado, setFiltroEstado] = useState('Todos los Estados');
   const [filtroEquipo, setFiltroEquipo] = useState('Todos los Equipos');
+  const [filtroSupervisor, setFiltroSupervisor] = useState('Todos los Supervisores'); // <--- AGREGA ESTA LÍNEA AQUÍ
   const [inputBusqueda, setInputBusqueda] = useState('');
   const [busquedaActiva, setBusquedaActiva] = useState('');
 
@@ -486,6 +487,12 @@ export default function Home() {
     const coincidePapelera = vistaPapelera ? item.en_papelera : !item.en_papelera;
     const coincideEstado = filtroEstado === 'Todos los Estados' || item.estado === filtroEstado;
     const coincideEquipo = filtroEquipo === 'Todos los Equipos' || item.equipo_afectado === filtroEquipo;
+    
+    // <--- AGREGA ESTA VALIDACIÓN DE SUPERVISOR AQUÍ --->
+    const coincideSupervisor = filtroSupervisor === 'Todos los Supervisores' || 
+                               item.supervisor === filtroSupervisor || 
+                               item.supervisor_asignado === filtroSupervisor;
+
     const coincideBusqueda = (item.id.toString()).includes(busquedaActiva) ||
                              (item.equipo_afectado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
                              (item.odpe_nombre || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
@@ -494,10 +501,11 @@ export default function Home() {
     
     const esReporteSoporte = item.creado_por?.includes('(Técnico de Campo)') || item.creado_por?.includes('Técnico');
     
-    if (seccionActiva === 'soportes') return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda && esReporteSoporte;
-    if (seccionActiva === 'incidentes') return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda && !esReporteSoporte;
+    // <--- AÑADE "coincideSupervisor" EN LOS RETORNOS --->
+    if (seccionActiva === 'soportes') return coincidePapelera && coincideEstado && coincideEquipo && coincideSupervisor && coincideBusqueda && esReporteSoporte;
+    if (seccionActiva === 'incidentes') return coincidePapelera && coincideEstado && coincideEquipo && coincideSupervisor && coincideBusqueda && !esReporteSoporte;
 
-    return coincidePapelera && coincideEstado && coincideEquipo && coincideBusqueda;
+    return coincidePapelera && coincideEstado && coincideEquipo && coincideSupervisor && coincideBusqueda;
   });
 
   // PAGINACIÓN CÁLCULOS
@@ -840,7 +848,7 @@ export default function Home() {
         {/* PESTAÑA REPORTES DE SOPORTES */}
         {seccionActiva === 'soportes' && (
           <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-5`}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-stone-300/40 pb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 border-b border-stone-300/40 pb-4">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3.5 top-3.5 opacity-50" />
                 <input 
@@ -855,15 +863,116 @@ export default function Home() {
                   className={`w-full rounded-xl p-3 pl-10 text-xs focus:outline-none ${estilosTema.bgInput}`} 
                 />
               </div>
+
+              {/* Filtro de Estado */}
               <select value={filtroEstado} onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
                 <option value="Todos los Estados">Todos los Estados</option>
                 {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
               </select>
+
+              {/* Filtro de Equipo */}
               <select value={filtroEquipo} onChange={(e) => { setFiltroEquipo(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
                 <option value="Todos los Equipos">Todos los Equipos</option>
                 {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
               </select>
+
+              {/* Filtro de Supervisor */}
+              <select value={filtroSupervisor} onChange={(e) => { setFiltroSupervisor(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+                <option value="Todos los Supervisores">Todos los Supervisores</option>
+                {listaSupervisores.map((sup, idx) => <option key={idx} value={sup}>{sup}</option>)}
+              </select>
             </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
+                  <tr>
+                    <th className="py-4 px-4">ID / ODPE</th>
+                    <th className="py-4 px-4">Equipo</th>
+                    <th className="py-4 px-4">Técnico de Campo</th>
+                    <th className="py-4 px-4">Delegado A</th>
+                    <th className="py-4 px-4">Estado</th>
+                    <th className="py-4 px-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-300/40">
+                  {incidenciasFiltradas.slice((paginaActualSoportes - 1) * elementosPorPagina, paginaActualSoportes * elementosPorPagina).map((item) => (
+                    <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
+                      <td className="py-4 px-4">
+                        <span className="font-mono text-amber-700 font-bold text-sm">#{item.id}</span>
+                        <p className="font-bold mt-0.5">{item.odpe_nombre}</p>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="font-semibold">{item.equipo_afectado}</p>
+                        <p className={`text-[11px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="font-semibold">{item.tecnico_nombre}</p>
+                        <p className={`text-[11px] ${estilosTema.subtext}`}>Cel: {item.tecnico_celular || 'S/N'}</p>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                          item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                          item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                          item.estado === 'Almacén' ? 'bg-purple-100 text-purple-900 border border-purple-300' :
+                          'bg-red-100 text-red-900 border border-red-300'
+                        }`}>
+                          {item.estado}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right space-x-2">
+                        <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-3.5 py-2 rounded-xl font-bold transition-all" title="Ver Detalles">🔍 Ver</button>
+                        <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); setNuevoSupervisorAsignado(item.supervisor_asignado || ''); }} className={`px-3.5 py-2 rounded-xl font-bold shadow-md transition-all ${estilosTema.accentPrimary}`} title="Atender">✏️ Atender</button>
+                        <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 px-3.5 py-2 rounded-xl border border-amber-300 font-bold transition-all" title="Papelera">🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* CONTROLES DE PAGINACIÓN - SOPORTES */}
+            {Math.ceil(incidenciasFiltradas.length / elementosPorPagina) > 1 && (
+              <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
+                <span className={estilosTema.subtext}>
+                  Mostrando página {paginaActualSoportes} de {Math.ceil(incidenciasFiltradas.length / elementosPorPagina)} ({incidenciasFiltradas.length} registros en total)
+                </span>
+                <div className="flex gap-1.5 items-center">
+                  <button
+                    onClick={() => setPaginaActualSoportes(p => Math.max(p - 1, 1))}
+                    disabled={paginaActualSoportes === 1}
+                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Anterior
+                  </button>
+
+                  <div className="flex gap-1 px-2">
+                    {Array.from({ length: Math.ceil(incidenciasFiltradas.length / elementosPorPagina) }, (_, i) => i + 1).map(num => (
+                      <button
+                        key={num}
+                        onClick={() => setPaginaActualSoportes(num)}
+                        className={`w-8 h-8 rounded-xl font-bold text-xs ${paginaActualSoportes === num ? estilosTema.accentPrimary : 'border border-stone-300 bg-stone-100'}`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setPaginaActualSoportes(p => Math.min(p + 1, Math.ceil(incidenciasFiltradas.length / elementosPorPagina)))}
+                    disabled={paginaActualSoportes === Math.ceil(incidenciasFiltradas.length / elementosPorPagina)}
+                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
+                  >
+                    Siguiente <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
