@@ -865,114 +865,35 @@ export default function Home() {
               </div>
 
               {/* Filtro de Estado */}
-              <select value={filtroEstado} onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+              <select 
+                value={filtroEstado} 
+                onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualSoportes(1); }} 
+                className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}
+              >
                 <option value="Todos los Estados">Todos los Estados</option>
                 {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
               </select>
 
               {/* Filtro de Equipo */}
-              <select value={filtroEquipo} onChange={(e) => { setFiltroEquipo(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+              <select 
+                value={filtroEquipo} 
+                onChange={(e) => { setFiltroEquipo(e.target.value); setPaginaActualSoportes(1); }} 
+                className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}
+              >
                 <option value="Todos los Equipos">Todos los Equipos</option>
                 {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
               </select>
 
               {/* Filtro de Supervisor */}
-              <select value={filtroSupervisor} onChange={(e) => { setFiltroSupervisor(e.target.value); setPaginaActualSoportes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+              <select 
+                value={filtroSupervisor} 
+                onChange={(e) => { setFiltroSupervisor(e.target.value); setPaginaActualSoportes(1); }} 
+                className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}
+              >
                 <option value="Todos los Supervisores">Todos los Supervisores</option>
                 {listaSupervisores.map((sup, idx) => <option key={idx} value={sup}>{sup}</option>)}
               </select>
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
-                  <tr>
-                    <th className="py-4 px-4">ID / ODPE</th>
-                    <th className="py-4 px-4">Equipo</th>
-                    <th className="py-4 px-4">Técnico de Campo</th>
-                    <th className="py-4 px-4">Delegado A</th>
-                    <th className="py-4 px-4">Estado</th>
-                    <th className="py-4 px-4 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-300/40">
-                  {incidenciasFiltradas.slice((paginaActualSoportes - 1) * elementosPorPagina, paginaActualSoportes * elementosPorPagina).map((item) => (
-                    <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
-                      <td className="py-4 px-4">
-                        <span className="font-mono text-amber-700 font-bold text-sm">#{item.id}</span>
-                        <p className="font-bold mt-0.5">{item.odpe_nombre}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-semibold">{item.equipo_afectado}</p>
-                        <p className={`text-[11px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-semibold">{item.tecnico_nombre}</p>
-                        <p className={`text-[11px] ${estilosTema.subtext}`}>Cel: {item.tecnico_celular || 'S/N'}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                          item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
-                          item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                          item.estado === 'Almacén' ? 'bg-purple-100 text-purple-900 border border-purple-300' :
-                          'bg-red-100 text-red-900 border border-red-300'
-                        }`}>
-                          {item.estado}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-right space-x-2">
-                        <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-3.5 py-2 rounded-xl font-bold transition-all" title="Ver Detalles">🔍 Ver</button>
-                        <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); setNuevoSupervisorAsignado(item.supervisor_asignado || ''); }} className={`px-3.5 py-2 rounded-xl font-bold shadow-md transition-all ${estilosTema.accentPrimary}`} title="Atender">✏️ Atender</button>
-                        <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 px-3.5 py-2 rounded-xl border border-amber-300 font-bold transition-all" title="Papelera">🗑️</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* CONTROLES DE PAGINACIÓN - SOPORTES */}
-            {Math.ceil(incidenciasFiltradas.length / elementosPorPagina) > 1 && (
-              <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
-                <span className={estilosTema.subtext}>
-                  Mostrando página {paginaActualSoportes} de {Math.ceil(incidenciasFiltradas.length / elementosPorPagina)} ({incidenciasFiltradas.length} registros en total)
-                </span>
-                <div className="flex gap-1.5 items-center">
-                  <button
-                    onClick={() => setPaginaActualSoportes(p => Math.max(p - 1, 1))}
-                    disabled={paginaActualSoportes === 1}
-                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
-                  >
-                    <ChevronLeft className="w-4 h-4" /> Anterior
-                  </button>
-
-                  <div className="flex gap-1 px-2">
-                    {Array.from({ length: Math.ceil(incidenciasFiltradas.length / elementosPorPagina) }, (_, i) => i + 1).map(num => (
-                      <button
-                        key={num}
-                        onClick={() => setPaginaActualSoportes(num)}
-                        className={`w-8 h-8 rounded-xl font-bold text-xs ${paginaActualSoportes === num ? estilosTema.accentPrimary : 'border border-stone-300 bg-stone-100'}`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => setPaginaActualSoportes(p => Math.min(p + 1, Math.ceil(incidenciasFiltradas.length / elementosPorPagina)))}
-                    disabled={paginaActualSoportes === Math.ceil(incidenciasFiltradas.length / elementosPorPagina)}
-                    className="p-2 rounded-xl border border-stone-300 bg-stone-100 disabled:opacity-30 font-bold flex items-center gap-1"
-                  >
-                    Siguiente <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
