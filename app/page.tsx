@@ -133,18 +133,17 @@ export default function Home() {
   const [archivoFoto2, setArchivoFoto2] = useState<File | null>(null);
   const [enviandoAdmin, setEnviandoAdmin] = useState(false);
 
-  // 🔒 LISTA DE LOS 3 USUARIOS AUTORIZADOS PARA MODIFICAR REPORTES IMPORTANTES
+  // 🔒 LISTA DE LOS 3 USUARIOS AUTORIZADOS
   const USUARIOS_AUTORIZADOS = [
-    'calvaradom@canvia.com', // <-- Reemplaza con el primer correo autorizado
-    'mmdpmq2330@gmail.com', // <-- Reemplaza con el segundo correo autorizado
-    'admin3@gmail.com'  // <-- Reemplaza con el tercer correo autorizado
+    'calvaradom@canvia.com',
+    'mmdpmq2330@gmail.com',
+    'admin3@gmail.com'
   ];
 
   const esUsuarioAutorizado = perfil && (
-    USUARIOS_AUTORIZADOS.includes(perfil.correo.toLowerCase()) || 
-    perfil.rol === 'Admin' || 
-    perfil.rol === 'Administrador'
-    
+    USUARIOS_AUTORIZADOS.map(c => c.toLowerCase()).includes(perfil.correo.toLowerCase()) || 
+    perfil.rol?.toLowerCase() === 'admin' || 
+    perfil.rol?.toLowerCase() === 'administrador'
   );
 
   useEffect(() => {
@@ -227,23 +226,26 @@ const cargarPerfil = async (userId: string, email: string) => {
 
       console.log("Datos de perfil encontrados en Supabase:", data);
 
-      if (data) {
+      if (data && data.rol) {
         setPerfil({
           correo: data.correo || email,
           nombre: data.nombre || email.split('@')[0],
-          rol: data.rol ? data.rol.trim() : 'Administrador',
+          rol: data.rol.trim(), // Respetará exactamente lo que dice Supabase (Supervisor, Junior, etc.)
         });
       } else {
-        // Fallback por si la tabla perfiles no devuelve registro pero el correo está autorizado
+        // Fallback seguro: si no está en la tabla perfiles, detecta si es junior o le asigna supervisor común
+        const esJunior = email.toLowerCase().includes('junior');
+        const rolPorDefecto = esJunior ? 'Junior' : 'Supervisor';
+        
         setPerfil({ 
           correo: email, 
           nombre: email.split('@')[0], 
-          rol: 'Administrador' 
+          rol: rolPorDefecto 
         });
       }
     } catch (err) {
       console.error("Error al cargar perfil:", err);
-      setPerfil({ correo: email, nombre: 'Usuario', rol: 'Administrador' });
+      setPerfil({ correo: email, nombre: 'Usuario', rol: 'Supervisor' });
     }
   };
 
