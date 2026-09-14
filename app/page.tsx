@@ -26,7 +26,9 @@ import {
   UserCheck,
   ChevronLeft,
   ChevronRight,
-  DollarSign
+  DollarSign,
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 
 interface Incidencia {
@@ -55,7 +57,7 @@ interface Incidencia {
 interface PerfilUsuario {
   correo: string;
   nombre: string;
-  rol: string; // <-- Ampliado para aceptar exactamente lo que diga Supabase (Administrador, Supervisor, Junior, etc)
+  rol: string;
 }
 
 type Tema = 'calido-claro' | 'calido-oscuro' | 'corporativo-limpio';
@@ -78,13 +80,13 @@ export default function Home() {
   const [vistaPapelera, setVistaPapelera] = useState(false);
   const [modalVer, setModalVer] = useState<Incidencia | null>(null);
 
-  // PAGINACIÓN (20 por página)
+  // PAGINACIÓN
   const [paginaActualIncidentes, setPaginaActualIncidentes] = useState(1);
   const [paginaActualSoportes, setPaginaActualSoportes] = useState(1);
   const [paginaActualOdpes, setPaginaActualOdpes] = useState(1);
   const elementosPorPagina = 20;
 
-  // Modal Edición Rápida Soportes / Delegación
+  // Modal Edición Rápida Soportes / Reportes Importantes
   const [modalEditarSoporte, setModalEditarSoporte] = useState<Incidencia | null>(null);
   const [nuevoEstadoSoporte, setNuevoEstadoSoporte] = useState('Resuelto');
   const [nuevoSupervisorAsignado, setNuevoSupervisorAsignado] = useState('');
@@ -97,22 +99,18 @@ export default function Home() {
   const [busquedaDirectorioInput, setBusquedaDirectorioInput] = useState('');
   const [listaSupervisores, setListaSupervisores] = useState<string[]>([]);
   const [listaEquipos, setListaEquipos] = useState<string[]>(['CPU', 'MONITOR', 'IMPRESORA', 'GRUPO ELECTROGENO', 'AIRE ACONDICIONADO', 'SWITCH/ROUTER']);
-  const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto','Alfil','Raul Osorio','Raul Tapia']);
+  const [listaEstados, setListaEstados] = useState<string[]>(['Reportado', 'En Proceso', 'Almacén', 'Resuelto', 'Alfil', 'Raul Osorio', 'Raul Tapia']);
 
-  const [modalCatalogos, setModalCatalogos] = useState<'supervisor' | 'equipo' | null>(null);
-  const [inputNuevoCatalog, setInputNuevoCatalog] = useState('');
-
- // Filtros
+  // Filtros
   const [filtroEstado, setFiltroEstado] = useState('Todos los Estados');
   const [filtroEquipo, setFiltroEquipo] = useState('Todos los Equipos');
-  const [filtroSupervisor, setFiltroSupervisor] = useState('Todos los Supervisores'); // <--- AGREGA ESTA LÍNEA AQUÍ
+  const [filtroSupervisor, setFiltroSupervisor] = useState('Todos los Supervisores');
   const [inputBusqueda, setInputBusqueda] = useState('');
   const [busquedaActiva, setBusquedaActiva] = useState('');
 
-  // Supervisor seleccionado para ver sus tareas asignadas en detalle
   const [supervisorDetalleSeleccionado, setSupervisorDetalleSeleccionado] = useState<string | null>(null);
 
-  // Formulario Admin
+  // Formulario Admin / Creación
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [odpeSeleccionada, setOdpeSeleccionada] = useState('');
   const [supervisor, setSupervisor] = useState('');
@@ -135,7 +133,19 @@ export default function Home() {
   const [archivoFoto2, setArchivoFoto2] = useState<File | null>(null);
   const [enviandoAdmin, setEnviandoAdmin] = useState(false);
 
-  // Guardar/Recuperar Tema Preferido
+  // 🔒 LISTA DE LOS 3 USUARIOS AUTORIZADOS PARA MODIFICAR REPORTES IMPORTANTES
+  const USUARIOS_AUTORIZADOS = [
+    'admin1@gmail.com', // <-- Reemplaza con el primer correo autorizado
+    'admin2@gmail.com', // <-- Reemplaza con el segundo correo autorizado
+    'admin3@gmail.com'  // <-- Reemplaza con el tercer correo autorizado
+  ];
+
+  const esUsuarioAutorizado = perfil && (
+    USUARIOS_AUTORIZADOS.includes(perfil.correo.toLowerCase()) || 
+    perfil.rol === 'Admin' || 
+    perfil.rol === 'Administrador'
+  );
+
   useEffect(() => {
     const temaGuardado = localStorage.getItem('odpe_tracker_tema') as Tema;
     if (temaGuardado) setTema(temaGuardado);
@@ -193,19 +203,14 @@ export default function Home() {
     else setDatosTecnicoExiste(false);
   };
 
-// --- FUNCIÓN DE PERFIL CON DEPURACIÓN VISUAL ---
   const cargarPerfil = async (userId: string, email: string) => {
     try {
-      console.log("Buscando perfil para ID:", userId, "o correo:", email);
-
-      // 1. Buscamos por ID de Supabase Auth (método principal y más seguro)
       let { data, error } = await supabase
         .from('perfiles')
         .select('nombre, rol, correo')
         .eq('id', userId)
         .maybeSingle();
 
-      // 2. Si hay error o no lo encuentra por ID, intentamos por correo
       if (!data || error) {
         const resp = await supabase
           .from('perfiles')
@@ -215,23 +220,16 @@ export default function Home() {
         data = resp.data;
       }
 
-      console.log("Datos de perfil encontrados en Supabase:", data);
-
       if (data && data.rol) {
         setPerfil({
           correo: data.correo || email,
           nombre: data.nombre || email.split('@')[0],
-          rol: data.rol.trim(), // Asignará 'Admin', 'Administrador', 'Supervisor', etc.
+          rol: data.rol.trim(),
         });
       } else {
-        console.warn("No se encontró el perfil en la tabla. Aplicando rol por defecto.");
-        const esJunior = email.toLowerCase().includes('junior');
-        const rolPorDefecto = esJunior ? 'Junior' : 'Supervisor';
-        
-        setPerfil({ correo: email, nombre: email.split('@')[0], rol: rolPorDefecto });
+        setPerfil({ correo: email, nombre: email.split('@')[0], rol: 'Supervisor' });
       }
     } catch (err) {
-      console.error("Error al cargar perfil:", err);
       setPerfil({ correo: email, nombre: 'Usuario', rol: 'Supervisor' });
     }
   };
@@ -289,7 +287,7 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (perfil?.rol === 'Visitante') return toast.error('Acceso de solo lectura.');
+    if (!esUsuarioAutorizado) return toast.error('Acceso denegado: Solo los 3 usuarios autorizados pueden modificar Reportes Importantes.');
 
     setEnviandoAdmin(true);
     try {
@@ -322,11 +320,11 @@ export default function Home() {
 
       if (editandoId) {
         await supabase.from('incidencias').update(payload).eq('id', editandoId);
-        toast.success('Incidencia actualizada correctamente');
+        toast.success('Reporte importante actualizado correctamente');
         limpiarFormulario();
       } else {
         await supabase.from('incidencias').insert([{ ...payload, creado_por: perfil?.correo, en_papelera: false }]);
-        toast.success('Incidencia registrada con éxito');
+        toast.success('Reporte importante registrado con éxito');
         limpiarFormulario();
       }
     } catch (err: any) {
@@ -339,9 +337,7 @@ export default function Home() {
     if (!modalEditarSoporte) return;
     setGuardandoSoporte(true);
 
-    // Obtenemos el nombre del usuario logueado actualmente
     const autorActualizacion = perfil?.nombre || perfil?.correo || 'Usuario';
-
     const observacionActualizada = nuevasObsSoporte.trim()
       ? `${modalEditarSoporte.descripcion}\n\n[ACTUALIZACIÓN ATENCIÓN (${autorActualizacion})]: ${nuevasObsSoporte.trim()}`
       : modalEditarSoporte.descripcion;
@@ -353,9 +349,9 @@ export default function Home() {
     }).eq('id', modalEditarSoporte.id);
 
     if (error) {
-      toast.error('Error al actualizar soporte: ' + error.message);
+      toast.error('Error al actualizar: ' + error.message);
     } else {
-      toast.success('Reporte de soporte y delegación actualizados');
+      toast.success('Estado y delegación actualizados con éxito');
       setModalEditarSoporte(null);
       setNuevasObsSoporte('');
     }
@@ -363,34 +359,17 @@ export default function Home() {
   };
 
   const moverAPapelera = async (id: number, enviarAPapelera: boolean) => {
-    if (perfil?.rol === 'Visitante') return toast.error('Acción no permitida.');
+    if (!esUsuarioAutorizado) return toast.error('Acción restringida a usuarios autorizados.');
     await supabase.from('incidencias').update({ en_papelera: enviarAPapelera }).eq('id', id);
-    toast.info(enviarAPapelera ? 'Movido a papelera' : 'Restaurado');
+    toast.info(enviarAPapelera ? 'Movido a papelera' : 'Registro restaurado con éxito');
   };
 
   const eliminarDefinitivo = async (id: number) => {
-    if (perfil?.rol !== 'Admin' && perfil?.rol !== 'Administrador') return toast.error('Solo el rol Administrador puede eliminar registros de forma permanente.');
+    if (!esUsuarioAutorizado) return toast.error('Acción restringida.');
     if (confirm('¿Eliminar registro de forma permanente?')) {
       await supabase.from('incidencias').delete().eq('id', id);
       toast.success('Registro eliminado definitivamente');
     }
-  };
-
-  const cargarParaEditar = (item: Incidencia) => {
-    setEditandoId(item.id);
-    setOdpeSeleccionada(item.odpe_nombre);
-    setSupervisor(item.supervisor || '');
-    setSupervisorAsignadoAdmin(item.supervisor_asignado || '');
-    setTecnicoNombre(item.tecnico_nombre || '');
-    setTecnicoDni(item.tecnico_dni || '');
-    setTecnicoCelular(item.tecnico_celular || '');
-    setEquipoSeleccionado(item.equipo_afectado);
-    setMarca(item.marca || '');
-    setModelo(item.modelo || '');
-    setSerie(item.serie || '');
-    setTipoProblema(item.tipo_problema);
-    setEstado(item.estado);
-    setDescripcion(item.descripcion);
   };
 
   const limpiarFormulario = () => {
@@ -406,10 +385,20 @@ export default function Home() {
     setEstado('Reportado');
   };
 
-  const exportarExcelProfesional = () => {
-    if (incidencias.length === 0) return toast.error('No hay datos para exportar');
+  // EXPORTAR EXCEL EXCLUSIVO PARA REPORTES IMPORTANTES
+  const exportarExcelReportesImportantes = () => {
+    const filtradosParaExportar = incidencias.filter(item => {
+      const coincidePapelera = vistaPapelera ? item.en_papelera : !item.en_papelera;
+      const coincideEstado = filtroEstado === 'Todos los Estados' || item.estado === filtroEstado;
+      const coincideEquipo = filtroEquipo === 'Todos los Equipos' || item.equipo_afectado === filtroEquipo;
+      const coincideSupervisor = filtroSupervisor === 'Todos los Supervisores' || item.supervisor === filtroSupervisor || item.supervisor_asignado === filtroSupervisor;
+      const esReporteSoporte = item.creado_por?.includes('(Técnico de Campo)') || item.creado_por?.includes('Técnico');
+      return coincidePapelera && coincideEstado && coincideEquipo && coincideSupervisor && !esReporteSoporte;
+    });
 
-    const datosFormateados = incidencias.map(i => ({
+    if (filtradosParaExportar.length === 0) return toast.error('No hay datos para exportar en esta vista');
+
+    const datosFormateados = filtradosParaExportar.map(i => ({
       ID: i.id,
       Fecha: new Date(i.created_at).toLocaleString('es-PE'),
       ODPE: i.odpe_nombre,
@@ -430,23 +419,13 @@ export default function Home() {
       font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
       fill: { fgColor: { rgb: '2C2825' } },
       alignment: { horizontal: 'center', vertical: 'center' },
-      border: {
-        top: { style: 'thin', color: { rgb: '000000' } },
-        bottom: { style: 'thin', color: { rgb: '000000' } },
-        left: { style: 'thin', color: { rgb: '000000' } },
-        right: { style: 'thin', color: { rgb: '000000' } }
-      }
+      border: { top: { style: 'thin', color: { rgb: '000000' } }, bottom: { style: 'thin', color: { rgb: '000000' } }, left: { style: 'thin', color: { rgb: '000000' } }, right: { style: 'thin', color: { rgb: '000000' } } }
     };
 
     const estiloCeldas = {
       font: { name: 'Calibri', sz: 10 },
       alignment: { vertical: 'center', wrapText: true },
-      border: {
-        top: { style: 'thin', color: { rgb: 'D3D3D3' } },
-        bottom: { style: 'thin', color: { rgb: 'D3D3D3' } },
-        left: { style: 'thin', color: { rgb: 'D3D3D3' } },
-        right: { style: 'thin', color: { rgb: 'D3D3D3' } }
-      }
+      border: { top: { style: 'thin', color: { rgb: 'D3D3D3' } }, bottom: { style: 'thin', color: { rgb: 'D3D3D3' } }, left: { style: 'thin', color: { rgb: 'D3D3D3' } }, right: { style: 'thin', color: { rgb: 'D3D3D3' } } }
     };
 
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
@@ -469,10 +448,28 @@ export default function Home() {
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Consolidado ODPE');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reportes Importantes');
 
-    XLSX.writeFile(workbook, `Consolidado_ODPE_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success('¡Reporte Excel profesional descargado con éxito!');
+    XLSX.writeFile(workbook, `Reportes_Importantes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success('¡Reportes Importantes exportados con éxito!');
+  };
+
+  // CÁLCULO DE TIEMPO VENCIMIENTO DINÁMICO (Ejemplo: 48 horas límite)
+  const calcularVencimiento = (fechaCreacion: string, estadoActual: string) => {
+    if (estadoActual === 'Resuelto') return { texto: 'Completado', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
+
+    const ahora = new Date().getTime();
+    const creacion = new Date(fechaCreacion).getTime();
+    const horasTranscurridas = (ahora - creacion) / (1000 * 60 * 60);
+    const horasRestantes = Math.round(48 - horasTranscurridas); // Límite de 48 horas
+
+    if (horasRestantes < 0) {
+      return { texto: `Vencido (${Math.abs(horasRestantes)}h)`, color: 'bg-red-200 text-red-900 border-red-400 font-bold animate-pulse' };
+    } else if (horasRestantes <= 12) {
+      return { texto: `Expira pronto (${horasRestantes}h)`, color: 'bg-amber-200 text-amber-900 border-amber-400 font-bold' };
+    } else {
+      return { texto: `${horasRestantes}h restantes`, color: 'bg-blue-100 text-blue-900 border-blue-300' };
+    }
   };
 
   const odpesFiltradasPadron = listaPadron.filter(p =>
@@ -491,27 +488,24 @@ export default function Home() {
     const coincideEstado = filtroEstado === 'Todos los Estados' || item.estado === filtroEstado;
     const coincideEquipo = filtroEquipo === 'Todos los Equipos' || item.equipo_afectado === filtroEquipo;
     
-    // <--- AGREGA ESTA VALIDACIÓN DE SUPERVISOR AQUÍ --->
     const coincideSupervisor = filtroSupervisor === 'Todos los Supervisores' || 
                                item.supervisor === filtroSupervisor || 
                                item.supervisor_asignado === filtroSupervisor;
 
     const coincideBusqueda = (item.id.toString()).includes(busquedaActiva) ||
-                             (item.equipo_afectado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
-                             (item.odpe_nombre || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
-                             (item.supervisor_asignado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
-                             (item.descripcion || '').toLowerCase().includes(busquedaActiva.toLowerCase());
+                           (item.equipo_afectado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
+                           (item.odpe_nombre || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
+                           (item.supervisor_asignado || '').toLowerCase().includes(busquedaActiva.toLowerCase()) ||
+                           (item.descripcion || '').toLowerCase().includes(busquedaActiva.toLowerCase());
     
     const esReporteSoporte = item.creado_por?.includes('(Técnico de Campo)') || item.creado_por?.includes('Técnico');
     
-    // <--- AÑADE "coincideSupervisor" EN LOS RETORNOS --->
     if (seccionActiva === 'soportes') return coincidePapelera && coincideEstado && coincideEquipo && coincideSupervisor && coincideBusqueda && esReporteSoporte;
     if (seccionActiva === 'incidentes') return coincidePapelera && coincideEstado && coincideEquipo && coincideSupervisor && coincideBusqueda && !esReporteSoporte;
 
     return coincidePapelera && coincideEstado && coincideEquipo && coincideSupervisor && coincideBusqueda;
   });
 
-  // PAGINACIÓN CÁLCULOS
   const totalPaginasIncidentes = Math.ceil(incidenciasFiltradas.length / elementosPorPagina) || 1;
   const indexUltimoIncidente = paginaActualIncidentes * elementosPorPagina;
   const indexPrimerIncidente = indexUltimoIncidente - elementosPorPagina;
@@ -620,8 +614,9 @@ export default function Home() {
             <button onClick={() => setSeccionActiva('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-xs ${seccionActiva === 'dashboard' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <LayoutDashboard className="w-4 h-4" /> Dashboard
             </button>
+            {/* CAMBIO DE NOMBRE A REPORTES IMPORTANTES */}
             <button onClick={() => setSeccionActiva('incidentes')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-xs ${seccionActiva === 'incidentes' ? estilosTema.accentPrimary : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
-              <FileText className="w-4 h-4" /> Incidentes Generales
+              <FileText className="w-4 h-4" /> Reportes Importantes
             </button>
             <button onClick={() => setSeccionActiva('soportes')} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-xs ${seccionActiva === 'soportes' ? 'bg-emerald-700 text-white' : 'opacity-70 hover:opacity-100 hover:bg-stone-800/40'}`}>
               <span className="flex items-center gap-3"><Wrench className="w-4 h-4" /> Reportes Soportes</span>
@@ -650,7 +645,7 @@ export default function Home() {
           </nav>
         </div>
 
-        {/* SELECTOR DE TEMAS EN EL SIDEBAR */}
+        {/* SELECTOR DE TEMAS */}
         <div className="space-y-3 border-t border-stone-700/50 pt-4 text-xs">
           <div className="px-2 space-y-1.5">
             <span className="text-[11px] font-bold uppercase opacity-70 flex items-center gap-1.5">
@@ -686,7 +681,7 @@ export default function Home() {
         <div>
           <h1 className="text-xl font-black uppercase tracking-tight flex items-center gap-2.5">
             {seccionActiva === 'soportes' ? <Wrench className="w-6 h-6 text-emerald-600" /> : seccionActiva === 'pagos' ? <DollarSign className="w-6 h-6 text-amber-600" /> : seccionActiva === 'supervisores' ? <UserCheck className="w-6 h-6 text-amber-700" /> : <FileText className="w-6 h-6 text-amber-700" />}
-            {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva === 'pagos' ? 'Gestión de Pagos y Reembolsos a Técnicos' : seccionActiva === 'supervisores' ? 'Gestión y Asignación de Supervisores' : seccionActiva}
+            {seccionActiva === 'soportes' ? 'Solicitudes Enviadas por Soportes de Campo' : seccionActiva === 'pagos' ? 'Gestión de Pagos y Reembolsos a Técnicos' : seccionActiva === 'supervisores' ? 'Gestión y Asignación de Supervisores' : seccionActiva === 'incidentes' ? 'Reportes Importantes' : seccionActiva}
           </h1>
           <p className={`text-xs mt-1 ${estilosTema.subtext}`}>Monitoreo y auditoría técnica para {listaPadron.length || 126} sedes regionales</p>
         </div>
@@ -725,7 +720,7 @@ export default function Home() {
 
             <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm`}>
               <h3 className="text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
-                <History className="w-4 h-4 text-amber-700" /> Últimas Incidencias Registradas
+                <History className="w-4 h-4 text-amber-700" /> Últimos Reportes Registrados
               </h3>
               <div className="space-y-2.5">
                 {incidencias.slice(0, 5).map(i => (
@@ -742,11 +737,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* COMPONENTE MODULARIZADO DE PAGOS */}
         {seccionActiva === 'pagos' && (
           <SeccionPagos estilosTema={estilosTema} perfil={perfil} />
         )}
-        {/* PESTAÑA ASISTENCIA SOPORTES */}
         {seccionActiva === 'asistencia' && (
           <SeccionAsistencia estilosTema={estilosTema} perfil={perfil} />
         )}
@@ -789,7 +782,7 @@ export default function Home() {
                 <div className="flex justify-between items-center border-b border-stone-300/40 pb-4">
                   <div>
                     <h3 className="text-sm font-black uppercase text-amber-800">Tareas asignadas a: {supervisorDetalleSeleccionado}</h3>
-                    <p className={`text-xs mt-0.5 ${estilosTema.subtext}`}>Listado completo de incidencias bajo su responsabilidad</p>
+                    <p className={`text-xs mt-0.5 ${estilosTema.subtext}`}>Listado completo de reportes bajo su responsabilidad</p>
                   </div>
                   <button 
                     onClick={() => setSupervisorDetalleSeleccionado(null)} 
@@ -867,7 +860,6 @@ export default function Home() {
                 />
               </div>
 
-              {/* Filtro de Estado */}
               <select 
                 value={filtroEstado} 
                 onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualSoportes(1); }} 
@@ -877,7 +869,6 @@ export default function Home() {
                 {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
               </select>
 
-              {/* Filtro de Equipo */}
               <select 
                 value={filtroEquipo} 
                 onChange={(e) => { setFiltroEquipo(e.target.value); setPaginaActualSoportes(1); }} 
@@ -887,7 +878,6 @@ export default function Home() {
                 {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
               </select>
 
-              {/* Filtro de Supervisor */}
               <select 
                 value={filtroSupervisor} 
                 onChange={(e) => { setFiltroSupervisor(e.target.value); setPaginaActualSoportes(1); }} 
@@ -949,7 +939,6 @@ export default function Home() {
               </table>
             </div>
 
-            {/* CONTROLES DE PAGINACIÓN - SOPORTES */}
             {Math.ceil(incidenciasFiltradas.length / elementosPorPagina) > 1 && (
               <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
                 <span className={estilosTema.subtext}>
@@ -963,7 +952,6 @@ export default function Home() {
                   >
                     <ChevronLeft className="w-4 h-4" /> Anterior
                   </button>
-
                   <div className="flex gap-1 px-2">
                     {Array.from({ length: Math.ceil(incidenciasFiltradas.length / elementosPorPagina) }, (_, i) => i + 1).map(num => (
                       <button
@@ -975,7 +963,6 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-
                   <button
                     onClick={() => setPaginaActualSoportes(p => Math.min(p + 1, Math.ceil(incidenciasFiltradas.length / elementosPorPagina)))}
                     disabled={paginaActualSoportes === Math.ceil(incidenciasFiltradas.length / elementosPorPagina)}
@@ -989,19 +976,21 @@ export default function Home() {
           </div>
         )}
 
-        {/* PESTAÑA INCIDENTES GENERALES */}
+        {/* PESTAÑA REPORTES IMPORTANTES (EX INCIDENTES GENERALES) */}
         {seccionActiva === 'incidentes' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className={`${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-4`}>
               <div className="flex justify-between items-center border-b border-stone-300/40 pb-3">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-2">
-                  <PlusCircle className="w-4 h-4" /> {editandoId ? 'Editar Registro' : 'Nueva Incidencia'}
+                  <PlusCircle className="w-4 h-4" /> {editandoId ? 'Editar Reporte' : 'Nuevo Reporte Importante'}
                 </h2>
                 {editandoId && <button onClick={limpiarFormulario} className="text-xs text-red-600 underline font-bold">Cancelar</button>}
               </div>
 
-              {perfil?.rol === 'Visitante' ? (
-                <div className={`p-4 rounded-xl text-xs ${estilosTema.bgInput}`}>🔒 Permisos de solo lectura.</div>
+              {!esUsuarioAutorizado ? (
+                <div className={`p-4 rounded-xl text-xs bg-amber-100 text-amber-900 border border-amber-300 font-semibold text-center`}>
+                  🔒 Solo los 3 usuarios autorizados pueden registrar o modificar reportes importantes.
+                </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
                   <div className="space-y-1.5">
@@ -1065,7 +1054,6 @@ export default function Home() {
                   <div className="space-y-2">
                     <div className="flex justify-between items-center mb-1">
                       <label className={`font-semibold ${estilosTema.subtext}`}>EQUIPO AFECTADO</label>
-                      <button type="button" onClick={() => setModalCatalogos('equipo')} className="text-[11px] text-amber-700 hover:underline font-bold">+ Agregar Tipo</button>
                     </div>
                     <select value={equipoSeleccionado} onChange={(e) => setEquipoSeleccionado(e.target.value)} className={`w-full rounded-xl p-3 ${estilosTema.bgInput}`}>
                       {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
@@ -1113,7 +1101,7 @@ export default function Home() {
                   </div>
 
                   <button type="submit" disabled={enviandoAdmin} className={`w-full font-bold py-3.5 rounded-xl shadow-lg transition-all text-xs ${estilosTema.accentPrimary}`}>
-                    {enviandoAdmin ? 'Guardando...' : editandoId ? 'Actualizar Registro' : 'Guardar Incidencia'}
+                    {enviandoAdmin ? 'Guardando...' : editandoId ? 'Actualizar Reporte' : 'Guardar Reporte Importante'}
                   </button>
                 </form>
               )}
@@ -1121,8 +1109,8 @@ export default function Home() {
 
             <div className={`lg:col-span-2 ${estilosTema.bgCard} p-6 rounded-2xl border shadow-sm space-y-5 flex flex-col justify-between`}>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-stone-300/40 pb-4">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-b border-stone-300/40 pb-4">
+                  <div className="relative w-full sm:w-64">
                     <Search className="w-4 h-4 absolute left-3.5 top-3.5 opacity-50" />
                     <input 
                       type="text" 
@@ -1136,14 +1124,16 @@ export default function Home() {
                       className={`w-full rounded-xl p-3 pl-10 text-xs ${estilosTema.bgInput}`} 
                     />
                   </div>
-                  <select value={filtroEstado} onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualIncidentes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
-                    <option value="Todos los Estados">Todos los Estados</option>
-                    {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
-                  </select>
-                  <select value={filtroEquipo} onChange={(e) => { setFiltroEquipo(e.target.value); setPaginaActualIncidentes(1); }} className={`w-full rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
-                    <option value="Todos los Equipos">Todos los Equipos</option>
-                    {listaEquipos.map((eq, idx) => <option key={idx} value={eq}>{eq}</option>)}
-                  </select>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <select value={filtroEstado} onChange={(e) => { setFiltroEstado(e.target.value); setPaginaActualIncidentes(1); }} className={`w-full sm:w-auto rounded-xl p-3 text-xs font-semibold ${estilosTema.bgInput}`}>
+                      <option value="Todos los Estados">Todos los Estados</option>
+                      {listaEstados.map((es, idx) => <option key={idx} value={es}>{es}</option>)}
+                    </select>
+                    {/* BOTÓN DE EXPORTAR EXCEL EXCLUSIVO DE ESTA PESTAÑA */}
+                    <button onClick={exportarExcelReportesImportantes} className="bg-emerald-700 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 whitespace-nowrap">
+                      <BarChart3 className="w-4 h-4" /> Excel
+                    </button>
+                  </div>
                 </div>
 
                 {loading ? (
@@ -1153,61 +1143,72 @@ export default function Home() {
                     <table className="w-full text-left text-xs">
                       <thead className={`font-bold border-b uppercase ${estilosTema.subtext}`}>
                         <tr>
-                          <th className="py-4 px-4">ID / ODPE</th>
-                          <th className="py-4 px-4">Equipo</th>
-                          <th className="py-4 px-4">Delegado A</th>
-                          <th className="py-4 px-4">Estado</th>
-                          <th className="py-4 px-4 text-right">Acciones</th>
+                          <th className="py-4 px-3">ID / ODPE</th>
+                          <th className="py-4 px-3">Equipo</th>
+                          <th className="py-4 px-3">Delegado A</th>
+                          <th className="py-4 px-3">Vencimiento</th>
+                          <th className="py-4 px-3">Estado</th>
+                          <th className="py-4 px-3 text-right">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-300/40">
-                        {incidenciasPaginadas.map((item) => (
-                          <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
-                            <td className="py-4 px-4">
-                              <span className="font-mono text-amber-700 font-bold text-sm">#{item.id}</span>
-                              <p className="font-bold mt-0.5">{item.odpe_nombre}</p>
-                              <p className={`text-[11px] ${estilosTema.subtext}`}>Por: {item.creado_por || 'Sistema'}</p>
-                            </td>
-                            <td className="py-4 px-4">
-                              <p className="font-semibold">{item.equipo_afectado}</p>
-                              <p className={`text-[11px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
-                            </td>
-                            <td className="py-4 px-4">
-                              <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
-                            </td>
-                            <td className="py-4 px-4">
-                              <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                                item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
-                                item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                                item.estado === 'Almacén' ? 'bg-purple-100 text-purple-900 border border-purple-300' :
-                                'bg-red-100 text-red-900 border border-red-300'
-                              }`}>
-                                {item.estado}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4 text-right space-x-2">
-                              <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 px-3 py-2 rounded-xl font-bold">🔍</button>
+                        {incidenciasPaginadas.map((item) => {
+                          const v = calcularVencimiento(item.created_at, item.estado);
+                          return (
+                            <tr key={item.id} className="hover:bg-stone-500/10 transition-colors">
+                              <td className="py-4 px-3">
+                                <span className="font-mono text-amber-700 font-bold text-sm">#{item.id}</span>
+                                <p className="font-bold mt-0.5">{item.odpe_nombre}</p>
+                              </td>
+                              <td className="py-4 px-3">
+                                <p className="font-semibold">{item.equipo_afectado}</p>
+                                <p className={`text-[11px] ${estilosTema.subtext}`}>Serie: {item.serie || 'S/S'}</p>
+                              </td>
+                              <td className="py-4 px-3">
+                                <span className="font-bold text-amber-700">{item.supervisor_asignado || 'Sin delegar'}</span>
+                              </td>
+                              <td className="py-4 px-3">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] border font-bold inline-block ${v.color}`}>
+                                  {v.texto}
+                                </span>
+                              </td>
+                              <td className="py-4 px-3">
+                                <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                                  item.estado === 'Resuelto' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                                  item.estado === 'En Proceso' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                  'bg-red-100 text-red-900 border border-red-300'
+                                }`}>
+                                  {item.estado}
+                                </span>
+                              </td>
+                              <td className="py-4 px-3 text-right space-x-1.5 whitespace-nowrap">
+                                <button onClick={() => setModalVer(item)} className="bg-stone-300/60 hover:bg-stone-300 p-2 rounded-xl font-bold" title="Ver Detalles">🔍</button>
 
-                              {perfil?.rol !== 'Visitante' && !vistaPapelera && (
-                                <>
-                                  <button onClick={() => cargarParaEditar(item)} className="bg-amber-100 text-amber-900 border border-amber-300 px-3 py-2 rounded-xl font-bold">✏️</button>
-                                  <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 border border-amber-300 px-3 py-2 rounded-xl font-bold">🗑️</button>
-                                </>
-                              )}
+                                {esUsuarioAutorizado && !vistaPapelera && (
+                                  <>
+                                    <button onClick={() => { setModalEditarSoporte(item); setNuevoEstadoSoporte(item.estado); setNuevoSupervisorAsignado(item.supervisor_asignado || ''); }} className="bg-amber-100 text-amber-900 border border-amber-300 p-2 rounded-xl font-bold" title="Atender / Editar">✏️</button>
+                                    <button onClick={() => moverAPapelera(item.id, true)} className="bg-amber-100 text-amber-900 border border-amber-300 p-2 rounded-xl font-bold" title="Enviar a Papelera">🗑️</button>
+                                  </>
+                                )}
 
-                              {(perfil?.rol === 'Admin' || perfil?.rol === 'Administrador') && vistaPapelera && (
-                                <button onClick={() => eliminarDefinitivo(item.id)} className="bg-red-600 text-white px-3 py-2 rounded-xl font-bold">❌</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                {/* BOTÓN DE RESTAURAR DESDE PAPELERA */}
+                                {esUsuarioAutorizado && vistaPapelera && (
+                                  <button onClick={() => moverAPapelera(item.id, false)} className="bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-2 rounded-xl font-bold" title="Restaurar Registro">♻️ Restaurar</button>
+                                )}
+
+                                {esUsuarioAutorizado && vistaPapelera && (
+                                  <button onClick={() => eliminarDefinitivo(item.id)} className="bg-red-600 text-white px-3 py-2 rounded-xl font-bold" title="Eliminar Definitivo">❌</button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
               </div>
 
-              {/* CONTROLES DE PAGINACIÓN - INCIDENTES GENERALES */}
               {totalPaginasIncidentes > 1 && (
                 <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
                   <span className={estilosTema.subtext}>
@@ -1221,7 +1222,6 @@ export default function Home() {
                     >
                       <ChevronLeft className="w-4 h-4" /> Anterior
                     </button>
-
                     <div className="flex gap-1 px-2">
                       {Array.from({ length: totalPaginasIncidentes }, (_, i) => i + 1).map(num => (
                         <button
@@ -1233,7 +1233,6 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
-
                     <button
                       onClick={() => setPaginaActualIncidentes(p => Math.min(p + 1, totalPaginasIncidentes))}
                       disabled={paginaActualIncidentes === totalPaginasIncidentes}
@@ -1283,7 +1282,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CONTROLES DE PAGINACIÓN - DIRECTORIO ODPES */}
             {totalPaginasOdpes > 1 && (
               <div className="flex justify-between items-center pt-4 border-t border-stone-300/40 text-xs">
                 <span className={estilosTema.subtext}>
@@ -1297,7 +1295,6 @@ export default function Home() {
                   >
                     <ChevronLeft className="w-4 h-4" /> Anterior
                   </button>
-
                   <div className="flex gap-1 px-2">
                     {Array.from({ length: totalPaginasOdpes }, (_, i) => i + 1).map(num => (
                       <button
@@ -1309,7 +1306,6 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-
                   <button
                     onClick={() => setPaginaActualOdpes(p => Math.min(p + 1, totalPaginasOdpes))}
                     disabled={paginaActualOdpes === totalPaginasOdpes}
@@ -1323,13 +1319,13 @@ export default function Home() {
           </div>
         )}
 
-        {/* PESTAÑA EXPORTAR EXCEL */}
+        {/* PESTAÑA EXPORTAR EXCEL GENERAL */}
         {seccionActiva === 'reportes' && (
           <div className={`${estilosTema.bgCard} p-10 rounded-2xl border shadow-sm space-y-5 text-center py-20 max-w-xl mx-auto`}>
             <BarChart3 className="w-14 h-14 text-emerald-600 mx-auto" />
             <h3 className="font-bold text-xl">Consolidado Oficial de Incidentes</h3>
             <p className={`text-xs ${estilosTema.subtext} max-w-md mx-auto`}>Descarga un reporte profesional en formato Excel (`.xlsx`) con cabeceras estilizadas, anchos adaptados y bordes limpios.</p>
-            <button onClick={exportarExcelProfesional} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Profesional</button>
+            <button onClick={exportarExcelReportesImportantes} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl shadow-lg transition-all text-xs">📊 Descargar Excel Profesional</button>
           </div>
         )}
 
@@ -1342,7 +1338,7 @@ export default function Home() {
               {incidencias.map(i => (
                 <div key={i.id} className={`p-4 rounded-xl flex justify-between items-center border ${estilosTema.bgCard}`}>
                   <div>
-                    <p className="font-bold">Incidencia #{i.id} creada por {i.creado_por || 'Sistema'}</p>
+                    <p className="font-bold">Reporte #{i.id} creado por {i.creado_por || 'Sistema'}</p>
                     <p className={estilosTema.subtext}>{i.odpe_nombre} - {i.equipo_afectado}</p>
                   </div>
                   <span className="text-[11px] font-mono opacity-70">{new Date(i.created_at).toLocaleString()}</span>
@@ -1353,7 +1349,7 @@ export default function Home() {
         )}
       </main>
 
-      {/* MODAL EDITAR SOPORTE Y DELEGACIÓN */}
+      {/* MODAL EDITAR SOPORTE / ATENDER / DELEGAR */}
       {modalEditarSoporte && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className={`${estilosTema.bgCard} rounded-3xl max-w-lg w-full p-8 space-y-5 text-xs border shadow-2xl`}>
