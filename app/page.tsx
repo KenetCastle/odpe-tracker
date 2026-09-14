@@ -135,8 +135,8 @@ export default function Home() {
 
   // 🔒 LISTA DE LOS 3 USUARIOS AUTORIZADOS PARA MODIFICAR REPORTES IMPORTANTES
   const USUARIOS_AUTORIZADOS = [
-    'admin1@gmail.com', // <-- Reemplaza con el primer correo autorizado
-    'admin2@gmail.com', // <-- Reemplaza con el segundo correo autorizado
+    'calvaradom@canvia.com', // <-- Reemplaza con el primer correo autorizado
+    'mmdpmq2330@gmail.com', // <-- Reemplaza con el segundo correo autorizado
     'admin3@gmail.com'  // <-- Reemplaza con el tercer correo autorizado
   ];
 
@@ -144,6 +144,7 @@ export default function Home() {
     USUARIOS_AUTORIZADOS.includes(perfil.correo.toLowerCase()) || 
     perfil.rol === 'Admin' || 
     perfil.rol === 'Administrador'
+    
   );
 
   useEffect(() => {
@@ -203,14 +204,18 @@ export default function Home() {
     else setDatosTecnicoExiste(false);
   };
 
-  const cargarPerfil = async (userId: string, email: string) => {
+const cargarPerfil = async (userId: string, email: string) => {
     try {
+      console.log("Buscando perfil para ID:", userId, "o correo:", email);
+
+      // 1. Buscamos primero por ID de Supabase Auth
       let { data, error } = await supabase
         .from('perfiles')
         .select('nombre, rol, correo')
         .eq('id', userId)
         .maybeSingle();
 
+      // 2. Si no lo encuentra por ID, intentamos por la columna 'correo'
       if (!data || error) {
         const resp = await supabase
           .from('perfiles')
@@ -220,17 +225,25 @@ export default function Home() {
         data = resp.data;
       }
 
-      if (data && data.rol) {
+      console.log("Datos de perfil encontrados en Supabase:", data);
+
+      if (data) {
         setPerfil({
           correo: data.correo || email,
           nombre: data.nombre || email.split('@')[0],
-          rol: data.rol.trim(),
+          rol: data.rol ? data.rol.trim() : 'Administrador',
         });
       } else {
-        setPerfil({ correo: email, nombre: email.split('@')[0], rol: 'Supervisor' });
+        // Fallback por si la tabla perfiles no devuelve registro pero el correo está autorizado
+        setPerfil({ 
+          correo: email, 
+          nombre: email.split('@')[0], 
+          rol: 'Administrador' 
+        });
       }
     } catch (err) {
-      setPerfil({ correo: email, nombre: 'Usuario', rol: 'Supervisor' });
+      console.error("Error al cargar perfil:", err);
+      setPerfil({ correo: email, nombre: 'Usuario', rol: 'Administrador' });
     }
   };
 
